@@ -25,12 +25,13 @@
 - 用户已有 allowed_tags 和 denied_tags 配置
 
 ### 2.3 基于标签的文件组织功能
-**需求**：用户可定义标签到目录的映射规则，系统自动将符合条件的图书文件移动到对应的目录中。
+**需求**：用户可定义标签到目录的映射规则，系统自动在目标目录下创建软链接（symlink），将符合条件的图书"组织"到自定义目录结构中，而不破坏 Calibre 原有的 `{author}/{title}` 目录结构。
 
 **现状分析**：
-- 已存在 helper.update_dir_structure() 用于上传时的目录处理
-- 使用 Calibre 的目录结构
-- 已存在任务系统可处理后台移动操作
+- Calibre 目录结构为固定的 `{author}/{title (id)}/` 格式，`book.path` 字段在 [helper.py](file:///workspace/cps/helper.py#L448-L483) 中被硬编码解析为 `author_dir/title_dir` 两部分
+- `helper.update_dir_structure()` 是围绕作者/标题变更设计的封闭函数，无法用于任意外部目录移动
+- 直接修改 `book.path` 为标签目录会破坏 Calibre 桌面应用的兼容性
+- **方案选择**：使用软链接（`os.symlink`）+ 定期同步策略，在独立的标签目录下创建指向原始文件的链接
 
 ---
 
@@ -62,7 +63,7 @@
 │  ┌──────────────────────────────────────────────────────────────────────┐ │
 │  │  file_organizer.py (新增)                                             │ │
 │  │  - 标签目录映射                                                        │ │
-│  │  - 文件移动处理                                                        │ │
+│  │  - 软链接创建与管理                                                    │ │
 │  └──────────────────────────────────────────────────────────────────────┘ │
 └───────────────────────────────────────────────────────────────────────────┘
                                    │
@@ -108,12 +109,15 @@ class TagLibrary(Base):
     __tablename__ = 'tag_library'
     id = Column(Integer, primary_key=True)
     name = Column(String, unique=True, nullable=False)  # 标签名称
+    calibre_tag_id = Column(Integer, unique=True)  # 对应 Calibre Tags.id（非外键，跨数据库）
     category = Column(String, default="")  # 分类名称
     description = Column(String, default="")  # 描述
     is_active = Column(Boolean, default=True)  # 是否启用
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 ```
+
+> **设计说明**：`calibre_tag_id` 不使用 `ForeignKey` 约束，因为 Calibre Tags 表在独立 SQLite 数据库中。关联通过应用层维护：写入时回填 id，一致性检查时验证引用有效性。
 
 #### 4.1.2 FileOrganizationRules 表与标签关联
 ```python
@@ -132,10 +136,13 @@ class FileOrgRuleTags(Base):
     __tablename__ = 'file_org_rule_tags'
     id = Column(Integer, primary_key=True)
     rule_id = Column(Integer, ForeignKey('file_org_rules.id'), nullable=False)
-    tag_id = Column(Integer, ForeignKey('tags.id'), nullable=False)  # 关联 Calibre Tags 表
+    tag_name = Column(String, nullable=False)  # 标签名称，关联 Calibre Tags.name（字符串，非外键）
 ```
 
-> **设计说明**：使用关联表 `FileOrgRuleTags` 替代原先的 `tag_ids = Column(JSON)` 方案。关联表通过外键约束保证数据完整性，避免标签被删除后出现悬空引用，同时支持高效的反向查询（查询某个标签被哪些规则使用）。
+> **设计说明**：使用 `tag_name`（String）而非 `tag_id`（Integer + ForeignKey），因为 Calibre `Tags` 表（db.py）与用户数据库（ub.py）分别使用两个独立的 SQLite 引擎，SQLite 不支持跨数据库外键约束。通过标签名称进行应用层关联：
+> - 规则匹配时：通过 `tag_name` 在 Calibre `Tags` 表查找对应标签，再通过 `books_tags_link` 找到图书
+> - 标签删除时：在应用层监听并联动清理 `FileOrgRuleTags` 中的对应记录
+> - 标签重命名时：需同步更新 `FileOrgRuleTags.tag_name`
 
 #### 4.1.3 ScanHistory 表
 ```python
@@ -200,8 +207,8 @@ class FileOrganizerService:
         """获取所有文件组织规则"""
         pass
         
-    def add_rule(self, name, tag_ids, tag_combination, target_directory, priority):
-        """添加规则"""
+    def add_rule(self, name, tag_names, tag_combination, target_directory, priority):
+        """添加规则（tag_names 为标签名称列表，对应 Calibre Tags.name）"""
         pass
         
     def update_rule(self, rule_id, **kwargs):
@@ -220,8 +227,12 @@ class FileOrganizerService:
         """对所有图书应用规则（返回可处理的图书列表）"""
         pass
         
-    def move_book_file(self, book, target_directory):
-        """移动图书文件（调用 Calibre 的目录结构处理）"""
+    def create_symlink(self, book, target_directory):
+        """在目标目录下创建软链接（不移动 Calibre 原始文件）"""
+        pass
+        
+    def clean_stale_links(self, target_directory):
+        """清理目标目录中不再匹配规则的死链接"""
         pass
 ```
 
@@ -230,11 +241,12 @@ class FileOrganizerService:
 """
 元数据扫描任务
 """
+from flask_babel import lazy_gettext as N_
 from cps.services.worker import CalibreTask
 
 class TaskMetadataScan(CalibreTask):
     def __init__(self, provider_id, book_ids=None, user_id=None):
-        super().__init__(message=_("Metadata Scan: {}").format(provider_id))
+        super().__init__(message=N_("Metadata Scan: {}").format(provider_id))
         self.provider_id = provider_id
         self.book_ids = book_ids  # 如果为None则扫描全部
         self.user_id = user_id
@@ -242,14 +254,14 @@ class TaskMetadataScan(CalibreTask):
 
     @property
     def name(self):
-        return _("Metadata Scan")
+        return N_("Metadata Scan")
 
     @property
     def is_cancellable(self):
         return True
 
     def run(self, worker_thread):
-        """执行扫描任务"""
+        """执行扫描任务。注意：WorkerThread 在独立线程中运行，访问数据库前必须进入 app_context。"""
         pass
 ```
 
@@ -258,25 +270,26 @@ class TaskMetadataScan(CalibreTask):
 """
 文件组织任务
 """
+from flask_babel import lazy_gettext as N_
 from cps.services.worker import CalibreTask
 
 class TaskFileOrganize(CalibreTask):
     def __init__(self, rule_ids=None, book_ids=None, user_id=None):
-        super().__init__(message=_("File Organization"))
+        super().__init__(message=N_("File Organization"))
         self.rule_ids = rule_ids  # 要应用的规则
         self.book_ids = book_ids  # 要处理的图书
         self.user_id = user_id
 
     @property
     def name(self):
-        return _("File Organization")
+        return N_("File Organization")
 
     @property
     def is_cancellable(self):
         return True
 
     def run(self, worker_thread):
-        """执行文件组织任务"""
+        """执行文件组织任务（创建/更新软链接）。注意：需要进入 app_context。"""
         pass
 ```
 
@@ -369,6 +382,8 @@ def apply_rules():
 
 ### 4.3 前端组件设计
 
+> **兼容性注意**：项目使用 Bootstrap **3.4.1**，所有前端组件需使用 Bootstrap 3.x 的 class（如 `col-md-*`、`panel`、`btn-default` 等），不可使用 Bootstrap 4/5 的 class（如 `d-flex`、`form-row`、`btn-outline-*` 等）。
+
 #### 4.3.1 元数据扫描界面 (cps/templates/admin_metadata_scan.html)
 - 元数据提供者选择（现有搜索组件可复用）
 - 图书范围选择（全部、按标签筛选、按作者筛选）
@@ -395,7 +410,37 @@ def apply_rules():
 - 调用 provider.search() 方法获取元数据，注意返回类型为 `Optional[List[MetaRecord]]`，需处理 None 返回值
 - 提取 tags 字段并应用到 Calibre 数据库
 
+**各 Provider 的 tags 返回能力**（经代码审计验证）：
+| Provider | 返回 tags | 说明 |
+|----------|----------|------|
+| 豆瓣 ([douban.py](file:///workspace/cps/metadata_provider/douban.py#L184)) | ✅ | 从 HTML 页面 XPath 提取标签 |
+| Google Books ([google.py](file:///workspace/cps/metadata_provider/google.py#L93)) | ✅ | 从 API `categories` 字段映射 |
+| Amazon ([amazon.py](file:///workspace/cps/metadata_provider/amazon.py#L84)) | ❌ | 显式设为空列表 `tags=[]` |
+| 其他 provider | 待验证 | 需逐个检查实现 |
+
+> **注意**：用户选择 Amazon 作为元数据源时，扫描不会产生任何标签输出，应在 UI 中给出明确提示。
+
 #### 4.4.2 元数据扫描核心逻辑
+
+**Flask 应用上下文**：WorkerThread 在独立线程中执行，访问 `calibre_db.session` 前**必须**显式进入应用上下文（参考 [TaskConvert.run()](file:///workspace/cps/tasks/convert.py#L62-L68)）：
+```python
+def run(self, worker_thread):
+    from cps import app
+    with app.app_context():
+        # 所有数据库操作在此上下文中执行
+        ...
+```
+
+**ISBN 批量预加载**：避免 N+1 查询，在扫描前一次性加载所有图书的 ISBN（注意 `Identifiers` 表的关联字段为 `book`，非 `book_id`）：
+```python
+from sqlalchemy import or_
+identifiers = session.query(Identifiers).filter(
+    Identifiers.type == "isbn",
+    Identifiers.book.in_(all_book_ids)
+).all()
+# 构建 book_id -> isbn 映射，避免每本书都查一次
+isbn_map = {i.book: i.val for i in identifiers}
+```
 
 **查询生成策略**：
 - 优先使用 ISBN（通过 `Identifiers` 表中 `isbn` 类型的标识符）
@@ -419,13 +464,15 @@ def apply_rules():
 
 #### 4.4.3 TagLibrary 与 Calibre Tags 同步策略
 
-TagLibrary 表作为 Calibre Tags 表的扩展元数据层，两者通过标签名称关联：
+TagLibrary 表作为 Calibre Tags 表的扩展元数据层，两者通过 `Calibre Tags.id` 关联：
 
-- **读取同步**：TagLibraryService 初始化时，从 Calibre `Tags` 表同步所有标签名称到 TagLibrary（仅新增，不删除）
-- **写入同步**：通过 TagLibrary 添加的新标签，同步写入 Calibre `Tags` 表
-- **合并同步**：标签合并操作需同时更新 Calibre 数据库中的 `books_tags_link` 关联
-- **删除同步**：从 TagLibrary 删除标签时，可选择是否同时从 Calibre Tags 表删除
-- **一致性检查**：提供"同步校验"功能，检测两表之间的不一致并修复
+- **读取同步**：TagLibraryService 初始化时，从 Calibre `Tags` 表同步所有标签到 TagLibrary（以 `Tags.id` 为主键，标签名称为 `Tags.name`）
+  - `TagLibrary` 新增 `calibre_tag_id` 字段：`Column(Integer, unique=True)`，存储对应 Calibre Tags 的 id
+- **写入同步**：通过 TagLibrary 添加的新标签，同步写入 Calibre `Tags` 表，写入后回填 `calibre_tag_id`
+- **合并同步**：标签合并操作需更新 Calibre 数据库中的 `books_tags_link` 关联，将旧 tag_id 替换为新 tag_id，再清理旧标签
+- **删除同步**：从 TagLibrary 删除标签时，同步从 Calibre Tags 表删除对应标签，同时更新 `books_tags_link`
+- **一致性检查**：提供"同步校验"功能，检测 TagLibrary 与 Tags 表之间的不一致（如 TagLibrary 中有 calibre_tag_id 在 Tags 表中已不存在），并提供修复选项
+- **同名标签处理**：Calibre Tags 表的 `name` 无唯一约束，同一名称可能存在多条。同步时以 `Tags.id` 为准，在应用层处理名称冲突
 
 #### 4.4.4 与现有任务系统集成
 - 在 services/worker.py 中增加对新任务类型的支持
@@ -437,12 +484,56 @@ TagLibrary 表作为 Calibre Tags 表的扩展元数据层，两者通过标签�
 - 使用现有的 Tags 表结构
 - 复用 books_tags_link 关联表
 
-#### 4.4.6 Google Drive 兼容性
-- 文件组织功能需同时支持本地文件系统和 Google Drive 存储模式
-- 复用 `helper.update_dir_structure()` 统一入口，该函数已根据配置自动分发到：
-  - `update_dir_structure_file()`：本地文件系统模式
-  - `update_dir_structure_gdrive()`：Google Drive 模式
-- FileOrganizerService 的 `move_book_file()` 方法应调用 `helper.update_dir_structure()` 而非直接操作文件系统
+#### 4.4.6 文件组织技术方案（软链接 + 定期同步）
+
+**核心约束**：Calibre 目录结构 `{author}/{title (id)}/` 不可变。`book.path` 格式被多处代码硬编码依赖。因此在标签目录下使用软链接而非物理移动。
+
+**目录结构示例**：
+```
+/calibre_library/                          # Calibre 原始库（不动）
+│   Author A/
+│       Book Title (123)/
+│           book.epub
+│           cover.jpg
+│           metadata.opf
+│
+/tag_organized/                            # 标签组织目录（新增，用户配置路径）
+│   科幻/
+│       Book Title (123) -> ../../../calibre_library/Author A/Book Title (123)/
+│   经典/
+│       Book Title (123) -> ../../../calibre_library/Author A/Book Title (123)/
+```
+
+**同步策略**：
+- **全量同步**：遍历所有规则，为每个标签目录清理过期链接并重建
+- **增量同步**：标签关联变更时，只更新受影响的标签目录
+- **清理逻辑**：移除目标目录中不再匹配任何规则的死链接
+- **链接目标**：指向图书的 Calibre 目录（含封面和元数据文件），非单文件
+
+**平台兼容性**：
+- **Linux / macOS**：原生支持 `os.symlink()`，目录级链接
+- **Windows**：需要管理员权限或启用开发者模式。若权限不足，降级为复制 `.url` 快捷方式文件
+- **Google Drive**：不支持软链接，Google Drive 模式下此功能自动禁用，UI 提示不可用
+
+**FileOrganizerService.move_book_file() 更新**：
+```python
+def create_symlink(self, book, target_directory):
+    """在目标目录下创建指向 Calibre 原始目录的软链接"""
+    calibre_dir = os.path.join(config.config_calibre_dir, book.path)
+    link_name = get_valid_filename(book.title, chars=96) + " (" + str(book.id) + ")"
+    link_path = os.path.join(target_directory, link_name)
+    # 移除旧链接
+    if os.path.islink(link_path):
+        os.unlink(link_path)
+    os.symlink(calibre_dir, link_path, target_is_directory=True)
+
+def apply_rules_via_symlink(self, rule):
+    """根据规则创建软链接"""
+    # 1. 解析规则的 tag_name 列表，通过 Calibre Tags 表 + books_tags_link 找到匹配图书
+    # 2. 若 tag_combination == "all"，取交集；若 "any"，取并集
+    # 3. 按优先级排序规则，高优先级规则先处理
+    # 4. 对每本匹配图书，在 target_directory 下创建软链接
+```
 
 ---
 
@@ -483,10 +574,16 @@ TagLibrary 表作为 Calibre Tags 表的扩展元数据层，两者通过标签�
 ### 6.2 风险
 - **风险1**：豆瓣 API 限制或反爬策略
   - **缓解**：添加请求间隔，支持暂停/恢复，提供其他元数据提供者选项
-- **风险2**：文件移动的安全性
-  - **缓解**：提供预览功能，先模拟再执行，提供撤销机制（或备份）
+- **风险2**：软链接的文件系统兼容性
+  - **缓解**：Windows 下检测 `os.symlink` 是否可用，不可用时降级为 `.url` 快捷方式；Google Drive 模式下自动禁用本功能并提示
 - **风险3**：大规模扫描的性能问题
-  - **缓解**：分批处理，支持增量扫描
+  - **缓解**：分批处理（每批 50-100 本），支持增量扫描，使用 ISBN 批量预加载避免 N+1 查询
+- **风险4**：Calibre 数据库与用户数据库的一致性问题（跨 SQLite 数据库无外键约束）
+  - **缓解**：TagLibrary 通过 `calibre_tag_id` 应用层关联 + 一致性检查功能；FileOrgRuleTags 通过 `tag_name` 字符串关联 + 标签重命名/删除时联动更新
+- **风险5**：Amazon provider 不返回 tags
+  - **缓解**：UI 中明确标注各 provider 的标签支持状态，用户选择时给予提示
+- **风险6**：Calibre Tags 表 name 无唯一约束导致同名歧义
+  - **缓解**：TagLibrary 以 `Tags.id` 为唯一标识，应用层处理同名冲突并提示用户手动去重
 
 ---
 
