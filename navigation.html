@@ -3,30 +3,31 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Navigator Pro</title>
+    <title>AI Navigator Pro</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-primary: #0a0a0f;
-            --bg-secondary: #12121a;
-            --glass-bg: rgba(255, 255, 255, 0.03);
+            --bg-primary: #09090b;
+            --bg-secondary: #0f0f12;
+            --bg-tertiary: #18181b;
+            --glass-bg: rgba(255, 255, 255, 0.04);
             --glass-border: rgba(255, 255, 255, 0.08);
-            --glass-hover: rgba(255, 255, 255, 0.06);
+            --glass-hover: rgba(255, 255, 255, 0.08);
             --text-primary: rgba(255, 255, 255, 0.95);
-            --text-secondary: rgba(255, 255, 255, 0.5);
-            --text-tertiary: rgba(255, 255, 255, 0.3);
-            --accent-blue: #3b82f6;
-            --accent-purple: #8b5cf6;
+            --text-secondary: rgba(255, 255, 255, 0.6);
+            --text-tertiary: rgba(255, 255, 255, 0.35);
+            --accent-ai: #10b981;
+            --accent-local: #f59e0b;
+            --accent-cloud: #3b82f6;
+            --accent-purple: #a855f7;
             --accent-pink: #ec4899;
             --accent-cyan: #06b6d4;
-            --accent-orange: #f97316;
-            --accent-green: #10b981;
-            --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            --gradient-secondary: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-            --gradient-accent: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-            --shadow-glow: 0 0 60px rgba(139, 92, 246, 0.15);
+            --gradient-ai: linear-gradient(135deg, #10b981, #059669);
+            --gradient-cloud: linear-gradient(135deg, #3b82f6, #1d4ed8);
+            --gradient-local: linear-gradient(135deg, #f59e0b, #d97706);
+            --gradient-purple: linear-gradient(135deg, #a855f7, #7c3aed);
             --transition-smooth: cubic-bezier(0.4, 0, 0.2, 1);
             --transition-bounce: cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
@@ -42,7 +43,7 @@
         }
 
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
             background: var(--bg-primary);
             color: var(--text-primary);
             min-height: 100vh;
@@ -51,7 +52,7 @@
             -moz-osx-font-smoothing: grayscale;
         }
 
-        .canvas-container {
+        .bg-mesh {
             position: fixed;
             top: 0;
             left: 0;
@@ -59,23 +60,13 @@
             height: 100%;
             z-index: 0;
             pointer-events: none;
-        }
-
-        .gradient-layer {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 1;
-            pointer-events: none;
             background: 
-                radial-gradient(ellipse 80% 50% at 20% -20%, rgba(120, 119, 198, 0.15), transparent),
-                radial-gradient(ellipse 60% 40% at 80% 100%, rgba(139, 92, 246, 0.1), transparent),
-                radial-gradient(ellipse 50% 30% at 50% 50%, rgba(59, 130, 246, 0.05), transparent);
+                radial-gradient(ellipse 100% 100% at 0% 0%, rgba(16, 185, 129, 0.08), transparent 50%),
+                radial-gradient(ellipse 80% 80% at 100% 0%, rgba(59, 130, 246, 0.06), transparent 50%),
+                radial-gradient(ellipse 60% 60% at 100% 100%, rgba(168, 85, 247, 0.05), transparent 50%);
         }
 
-        .grid-overlay {
+        .grid-pattern {
             position: fixed;
             top: 0;
             left: 0;
@@ -84,11 +75,11 @@
             z-index: 1;
             pointer-events: none;
             background-image: 
-                linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
-            background-size: 60px 60px;
-            mask-image: radial-gradient(ellipse at center, black 0%, transparent 70%);
-            -webkit-mask-image: radial-gradient(ellipse at center, black 0%, transparent 70%);
+                linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+            background-size: 40px 40px;
+            mask-image: radial-gradient(ellipse 80% 60% at 50% 50%, black, transparent);
+            -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 50%, black, transparent);
         }
 
         .noise {
@@ -99,21 +90,8 @@
             height: 100%;
             z-index: 2;
             pointer-events: none;
-            opacity: 0.025;
-            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.7' numOctaves='6' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
-        }
-
-        .cursor-glow {
-            position: fixed;
-            width: 400px;
-            height: 400px;
-            border-radius: 50%;
-            background: radial-gradient(circle, rgba(139, 92, 246, 0.15) 0%, transparent 70%);
-            pointer-events: none;
-            z-index: 3;
-            transform: translate(-50%, -50%);
-            transition: opacity 0.3s ease;
-            opacity: 0;
+            opacity: 0.02;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
         }
 
         .container {
@@ -125,17 +103,17 @@
         }
 
         header {
-            padding: 32px 0;
+            padding: 24px 0;
             display: flex;
             justify-content: space-between;
             align-items: center;
             position: sticky;
             top: 0;
             z-index: 100;
-            background: rgba(10, 10, 15, 0.8);
+            background: rgba(9, 9, 11, 0.85);
             backdrop-filter: blur(20px);
             -webkit-backdrop-filter: blur(20px);
-            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            border-bottom: 1px solid var(--glass-border);
         }
 
         .logo {
@@ -144,548 +122,265 @@
             gap: 12px;
         }
 
-        .logo-mark {
-            width: 40px;
-            height: 40px;
-            background: var(--gradient-primary);
-            border-radius: 12px;
+        .logo-icon {
+            width: 36px;
+            height: 36px;
+            background: var(--gradient-ai);
+            border-radius: 10px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-family: 'Space Grotesk', sans-serif;
-            font-weight: 700;
             font-size: 18px;
-            box-shadow: 0 4px 20px rgba(102, 126, 234, 0.3);
             position: relative;
             overflow: hidden;
         }
 
-        .logo-mark::before {
+        .logo-icon::before {
             content: '';
             position: absolute;
-            top: -50%;
-            left: -50%;
-            width: 200%;
-            height: 200%;
-            background: linear-gradient(45deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-            transform: rotate(45deg);
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(45deg, transparent 30%, rgba(255,255,255,0.3) 50%, transparent 70%);
             animation: logoShine 3s infinite;
         }
 
         @keyframes logoShine {
-            0%, 100% { transform: translateX(-100%) rotate(45deg); }
-            50% { transform: translateX(100%) rotate(45deg); }
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
         }
 
         .logo-text {
-            font-family: 'Space Grotesk', sans-serif;
-            font-size: 20px;
+            font-size: 18px;
             font-weight: 600;
-            letter-spacing: -0.5px;
+            letter-spacing: -0.3px;
         }
 
-        .header-actions {
+        .logo-badge {
+            font-size: 10px;
+            padding: 3px 8px;
+            background: rgba(16, 185, 129, 0.2);
+            color: var(--accent-ai);
+            border-radius: 6px;
+            font-weight: 500;
+            letter-spacing: 0.5px;
+        }
+
+        .header-right {
             display: flex;
             align-items: center;
             gap: 16px;
+        }
+
+        .model-selector {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            padding: 8px 12px;
+            cursor: pointer;
+            transition: all 0.3s var(--transition-smooth);
+        }
+
+        .model-selector:hover {
+            background: var(--glass-hover);
+            border-color: rgba(255, 255, 255, 0.12);
+        }
+
+        .model-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--accent-cloud);
+            transition: background 0.3s;
+        }
+
+        .model-indicator.local {
+            background: var(--accent-local);
+        }
+
+        .model-name {
+            font-size: 13px;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .model-dropdown {
+            position: absolute;
+            top: calc(100% + 8px);
+            right: 0;
+            background: var(--bg-secondary);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            padding: 8px;
+            min-width: 200px;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-10px);
+            transition: all 0.3s var(--transition-smooth);
+            z-index: 200;
+        }
+
+        .model-selector:hover .model-dropdown {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+
+        .model-option {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .model-option:hover {
+            background: var(--glass-bg);
+        }
+
+        .model-option.active {
+            background: rgba(16, 185, 129, 0.1);
+        }
+
+        .model-option-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+        }
+
+        .model-option-icon.cloud {
+            background: var(--gradient-cloud);
+        }
+
+        .model-option-icon.local {
+            background: var(--gradient-local);
+        }
+
+        .model-option-info {
+            flex: 1;
+        }
+
+        .model-option-name {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .model-option-desc {
+            font-size: 11px;
+            color: var(--text-tertiary);
         }
 
         .time-widget {
             background: var(--glass-bg);
             border: 1px solid var(--glass-border);
-            border-radius: 12px;
-            padding: 10px 20px;
+            border-radius: 10px;
+            padding: 8px 16px;
             display: flex;
             align-items: center;
-            gap: 12px;
-            transition: all 0.3s var(--transition-smooth);
-        }
-
-        .time-widget:hover {
-            background: var(--glass-hover);
-            border-color: rgba(255, 255, 255, 0.12);
+            gap: 10px;
         }
 
         .time-display {
-            font-family: 'Space Grotesk', sans-serif;
-            font-size: 18px;
-            font-weight: 600;
-            background: linear-gradient(135deg, #fff, var(--accent-cyan));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-
-        .time-separator {
-            width: 1px;
-            height: 20px;
-            background: var(--glass-border);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--accent-ai);
         }
 
         .date-display {
-            font-size: 13px;
-            color: var(--text-secondary);
+            font-size: 12px;
+            color: var(--text-tertiary);
+        }
+
+        .main-layout {
+            display: grid;
+            grid-template-columns: 1fr 380px;
+            gap: 40px;
+            padding: 40px 0;
+            min-height: calc(100vh - 80px);
+        }
+
+        .nav-section {
+            display: flex;
+            flex-direction: column;
         }
 
         .hero {
-            padding: 100px 0 80px;
-            text-align: center;
+            margin-bottom: 40px;
         }
 
-        .hero-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            background: var(--glass-bg);
-            border: 1px solid var(--glass-border);
-            border-radius: 100px;
-            padding: 8px 16px;
-            margin-bottom: 32px;
-            font-size: 13px;
-            color: var(--text-secondary);
-            animation: fadeInUp 0.8s var(--transition-smooth);
-        }
-
-        .badge-dot {
-            width: 6px;
-            height: 6px;
-            background: var(--accent-green);
-            border-radius: 50%;
-            animation: pulse 2s infinite;
-        }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.5; transform: scale(1.2); }
-        }
-
-        .hero h1 {
-            font-family: 'Space Grotesk', sans-serif;
-            font-size: clamp(3rem, 8vw, 5.5rem);
+        .hero-title {
+            font-size: 2.5rem;
             font-weight: 700;
-            line-height: 1.1;
-            letter-spacing: -2px;
-            margin-bottom: 24px;
-            animation: fadeInUp 0.8s var(--transition-smooth) 0.1s both;
+            letter-spacing: -1px;
+            margin-bottom: 12px;
         }
 
-        .hero h1 span {
-            background: var(--gradient-primary);
+        .hero-title span {
+            background: var(--gradient-ai);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
         }
 
-        .hero-subtitle {
-            font-size: 1.25rem;
+        .hero-desc {
+            font-size: 1rem;
             color: var(--text-secondary);
-            max-width: 600px;
-            margin: 0 auto 48px;
-            line-height: 1.6;
-            animation: fadeInUp 0.8s var(--transition-smooth) 0.2s both;
+            max-width: 500px;
         }
 
-        @keyframes fadeInUp {
-            from {
-                opacity: 0;
-                transform: translateY(30px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .search-container {
-            max-width: 700px;
-            margin: 0 auto;
-            animation: fadeInUp 0.8s var(--transition-smooth) 0.3s both;
-        }
-
-        .search-wrapper {
-            position: relative;
-            background: var(--glass-bg);
-            border: 1px solid var(--glass-border);
-            border-radius: 20px;
-            padding: 6px;
-            display: flex;
-            align-items: center;
-            transition: all 0.3s var(--transition-smooth);
-        }
-
-        .search-wrapper:focus-within {
-            background: rgba(255, 255, 255, 0.05);
-            border-color: rgba(139, 92, 246, 0.3);
-            box-shadow: 
-                0 0 0 4px rgba(139, 92, 246, 0.1),
-                0 20px 40px rgba(0, 0, 0, 0.2);
-        }
-
-        .search-icon {
-            padding: 0 16px;
-            font-size: 20px;
-            color: var(--text-tertiary);
-        }
-
-        .search-input {
-            flex: 1;
-            background: transparent;
-            border: none;
-            outline: none;
-            font-size: 16px;
-            color: var(--text-primary);
-            font-family: inherit;
-            padding: 14px 0;
-        }
-
-        .search-input::placeholder {
-            color: var(--text-tertiary);
-        }
-
-        .search-shortcut {
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            padding: 0 16px;
-        }
-
-        .shortcut-key {
-            background: rgba(255, 255, 255, 0.08);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 6px;
-            padding: 4px 8px;
-            font-size: 12px;
-            color: var(--text-tertiary);
-            font-family: 'Space Grotesk', monospace;
-        }
-
-        .search-btn {
-            background: var(--gradient-primary);
-            border: none;
-            padding: 14px 32px;
-            border-radius: 14px;
-            color: white;
-            font-weight: 600;
-            font-size: 15px;
-            cursor: pointer;
-            transition: all 0.3s var(--transition-smooth);
-            font-family: inherit;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .search-btn::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-            transition: left 0.5s;
-        }
-
-        .search-btn:hover::before {
-            left: 100%;
-        }
-
-        .search-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
-        }
-
-        .search-suggestions {
-            display: flex;
-            justify-content: center;
-            gap: 12px;
-            margin-top: 20px;
-            flex-wrap: wrap;
-        }
-
-        .suggestion-tag {
-            background: var(--glass-bg);
-            border: 1px solid var(--glass-border);
-            border-radius: 100px;
-            padding: 8px 16px;
-            font-size: 13px;
-            color: var(--text-secondary);
-            cursor: pointer;
-            transition: all 0.3s var(--transition-smooth);
-        }
-
-        .suggestion-tag:hover {
-            background: var(--glass-hover);
-            color: var(--text-primary);
-            border-color: rgba(255, 255, 255, 0.15);
-        }
-
-        .main-content {
-            padding: 60px 0 100px;
-        }
-
-        .section {
-            margin-bottom: 80px;
-            opacity: 0;
-            transform: translateY(40px);
-            transition: all 0.8s var(--transition-smooth);
-        }
-
-        .section.visible {
-            opacity: 1;
-            transform: translateY(0);
-        }
-
-        .section-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 32px;
-        }
-
-        .section-title-group {
-            display: flex;
-            align-items: center;
+        .nav-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
             gap: 16px;
         }
 
-        .section-icon {
-            width: 48px;
-            height: 48px;
-            border-radius: 14px;
+        .nav-card {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            padding: 20px;
+            text-decoration: none;
             display: flex;
             align-items: center;
-            justify-content: center;
-            font-size: 22px;
-            position: relative;
-        }
-
-        .section-icon::after {
-            content: '';
-            position: absolute;
-            inset: 0;
-            border-radius: inherit;
-            padding: 1px;
-            background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), transparent);
-            -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-            mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-            -webkit-mask-composite: xor;
-            mask-composite: exclude;
-        }
-
-        .section-icon.blue { background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(59, 130, 246, 0.05)); }
-        .section-icon.purple { background: linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(139, 92, 246, 0.05)); }
-        .section-icon.pink { background: linear-gradient(135deg, rgba(236, 72, 153, 0.2), rgba(236, 72, 153, 0.05)); }
-        .section-icon.cyan { background: linear-gradient(135deg, rgba(6, 182, 212, 0.2), rgba(6, 182, 212, 0.05)); }
-
-        .section-title {
-            font-family: 'Space Grotesk', sans-serif;
-            font-size: 24px;
-            font-weight: 600;
-            letter-spacing: -0.5px;
-        }
-
-        .section-count {
-            font-size: 14px;
-            color: var(--text-tertiary);
-            background: var(--glass-bg);
-            border: 1px solid var(--glass-border);
-            border-radius: 100px;
-            padding: 6px 14px;
-        }
-
-        .card-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-            gap: 20px;
-        }
-
-        .card {
-            background: var(--glass-bg);
-            border: 1px solid var(--glass-border);
-            border-radius: 20px;
-            padding: 24px;
-            text-decoration: none;
-            display: block;
+            gap: 14px;
+            transition: all 0.3s var(--transition-smooth);
             position: relative;
             overflow: hidden;
-            transition: all 0.4s var(--transition-smooth);
         }
 
-        .card::before {
+        .nav-card::before {
             content: '';
             position: absolute;
             top: 0;
             left: 0;
             right: 0;
             height: 1px;
-            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
             opacity: 0;
             transition: opacity 0.3s;
         }
 
-        .card:hover {
-            background: var(--glass-hover);
-            border-color: rgba(255, 255, 255, 0.12);
-            transform: translateY(-4px);
-            box-shadow: 
-                0 20px 40px rgba(0, 0, 0, 0.3),
-                0 0 60px rgba(139, 92, 246, 0.1);
-        }
-
-        .card:hover::before {
-            opacity: 1;
-        }
-
-        .card-header {
-            display: flex;
-            align-items: flex-start;
-            gap: 16px;
-            margin-bottom: 16px;
-        }
-
-        .card-icon {
-            width: 56px;
-            height: 56px;
-            border-radius: 16px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 26px;
-            flex-shrink: 0;
-            position: relative;
-            transition: transform 0.3s var(--transition-bounce);
-        }
-
-        .card:hover .card-icon {
-            transform: scale(1.1) rotate(-3deg);
-        }
-
-        .card-icon.gradient-blue { 
-            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
-            box-shadow: 0 8px 24px rgba(59, 130, 246, 0.3);
-        }
-        .card-icon.gradient-purple { 
-            background: linear-gradient(135deg, #8b5cf6, #6d28d9);
-            box-shadow: 0 8px 24px rgba(139, 92, 246, 0.3);
-        }
-        .card-icon.gradient-pink { 
-            background: linear-gradient(135deg, #ec4899, #be185d);
-            box-shadow: 0 8px 24px rgba(236, 72, 153, 0.3);
-        }
-        .card-icon.gradient-cyan { 
-            background: linear-gradient(135deg, #06b6d4, #0891b2);
-            box-shadow: 0 8px 24px rgba(6, 182, 212, 0.3);
-        }
-        .card-icon.gradient-orange { 
-            background: linear-gradient(135deg, #f97316, #ea580c);
-            box-shadow: 0 8px 24px rgba(249, 115, 22, 0.3);
-        }
-        .card-icon.gradient-green { 
-            background: linear-gradient(135deg, #10b981, #059669);
-            box-shadow: 0 8px 24px rgba(16, 185, 129, 0.3);
-        }
-        .card-icon.gradient-red { 
-            background: linear-gradient(135deg, #ef4444, #dc2626);
-            box-shadow: 0 8px 24px rgba(239, 68, 68, 0.3);
-        }
-        .card-icon.gradient-indigo { 
-            background: linear-gradient(135deg, #6366f1, #4f46e5);
-            box-shadow: 0 8px 24px rgba(99, 102, 241, 0.3);
-        }
-
-        .card-info {
-            flex: 1;
-            min-width: 0;
-        }
-
-        .card-title {
-            font-size: 17px;
-            font-weight: 600;
-            color: var(--text-primary);
-            margin-bottom: 4px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .card-badge {
-            font-size: 10px;
-            font-weight: 500;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            padding: 3px 8px;
-            border-radius: 6px;
-            background: rgba(139, 92, 246, 0.2);
-            color: var(--accent-purple);
-        }
-
-        .card-url {
-            font-size: 13px;
-            color: var(--text-tertiary);
-            font-family: 'Space Grotesk', monospace;
-        }
-
-        .card-desc {
-            font-size: 14px;
-            color: var(--text-secondary);
-            line-height: 1.6;
-            display: -webkit-box;
-            -webkit-line-clamp: 2;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
-        }
-
-        .card-arrow {
-            position: absolute;
-            top: 24px;
-            right: 24px;
-            width: 32px;
-            height: 32px;
-            border-radius: 10px;
-            background: rgba(255, 255, 255, 0.05);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 16px;
-            color: var(--text-tertiary);
-            opacity: 0;
-            transform: translateX(-10px);
-            transition: all 0.3s var(--transition-smooth);
-        }
-
-        .card:hover .card-arrow {
-            opacity: 1;
-            transform: translateX(0);
-        }
-
-        .quick-actions {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 16px;
-            margin-top: 60px;
-            padding-top: 60px;
-            border-top: 1px solid var(--glass-border);
-        }
-
-        .quick-action {
-            background: var(--glass-bg);
-            border: 1px solid var(--glass-border);
-            border-radius: 16px;
-            padding: 20px;
-            display: flex;
-            align-items: center;
-            gap: 14px;
-            text-decoration: none;
-            transition: all 0.3s var(--transition-smooth);
-        }
-
-        .quick-action:hover {
+        .nav-card:hover {
             background: var(--glass-hover);
             border-color: rgba(255, 255, 255, 0.12);
             transform: translateY(-2px);
         }
 
-        .quick-action-icon {
+        .nav-card:hover::before {
+            opacity: 1;
+        }
+
+        .nav-card-icon {
             width: 44px;
             height: 44px;
             border-radius: 12px;
@@ -693,51 +388,543 @@
             align-items: center;
             justify-content: center;
             font-size: 20px;
-            background: rgba(255, 255, 255, 0.05);
+            flex-shrink: 0;
         }
 
-        .quick-action-text {
+        .nav-card-icon.green { background: var(--gradient-ai); }
+        .nav-card-icon.blue { background: var(--gradient-cloud); }
+        .nav-card-icon.orange { background: var(--gradient-local); }
+        .nav-card-icon.purple { background: var(--gradient-purple); }
+
+        .nav-card-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .nav-card-title {
             font-size: 15px;
-            font-weight: 500;
+            font-weight: 600;
             color: var(--text-primary);
         }
 
-        footer {
-            text-align: center;
-            padding: 40px 0;
-            border-top: 1px solid var(--glass-border);
+        .nav-card-url {
+            font-size: 12px;
+            color: var(--text-tertiary);
+            font-family: 'JetBrains Mono', monospace;
         }
 
-        .footer-content {
+        .ai-panel {
+            background: var(--bg-secondary);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
             display: flex;
             flex-direction: column;
+            height: calc(100vh - 120px);
+            position: sticky;
+            top: 100px;
+            overflow: hidden;
+        }
+
+        .ai-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--glass-border);
+            display: flex;
             align-items: center;
+            justify-content: space-between;
+        }
+
+        .ai-title-group {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .ai-icon {
+            width: 36px;
+            height: 36px;
+            background: var(--gradient-ai);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+
+        .ai-title {
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .ai-status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            color: var(--text-tertiary);
+        }
+
+        .ai-status-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--accent-ai);
+            animation: statusPulse 2s infinite;
+        }
+
+        @keyframes statusPulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        .ai-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .ai-action-btn {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .ai-action-btn:hover {
+            background: var(--glass-hover);
+            color: var(--text-primary);
+        }
+
+        .ai-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
             gap: 16px;
         }
 
-        .footer-links {
+        .ai-messages::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .ai-messages::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .ai-messages::-webkit-scrollbar-thumb {
+            background: var(--glass-border);
+            border-radius: 3px;
+        }
+
+        .message {
             display: flex;
-            gap: 24px;
+            gap: 12px;
+            animation: messageIn 0.4s var(--transition-smooth);
         }
 
-        .footer-link {
+        @keyframes messageIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            flex-shrink: 0;
+        }
+
+        .message-avatar.user {
+            background: var(--gradient-purple);
+        }
+
+        .message-avatar.ai {
+            background: var(--gradient-ai);
+        }
+
+        .message-content {
+            flex: 1;
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            padding: 12px 16px;
+        }
+
+        .message-content.user {
+            background: rgba(168, 85, 247, 0.1);
+            border-color: rgba(168, 85, 247, 0.2);
+        }
+
+        .message-text {
             font-size: 14px;
-            color: var(--text-tertiary);
-            text-decoration: none;
-            transition: color 0.3s;
-        }
-
-        .footer-link:hover {
+            line-height: 1.6;
             color: var(--text-primary);
         }
 
-        .footer-text {
+        .message-text pre {
+            background: var(--bg-primary);
+            border-radius: 8px;
+            padding: 12px;
+            margin: 8px 0;
+            font-family: 'JetBrains Mono', monospace;
             font-size: 13px;
+            overflow-x: auto;
+        }
+
+        .message-text code {
+            font-family: 'JetBrains Mono', monospace;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+
+        .message-meta {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 8px;
+            font-size: 11px;
             color: var(--text-tertiary);
         }
 
-        .footer-text span {
-            color: var(--accent-pink);
+        .message-model {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .message-model-dot {
+            width: 4px;
+            height: 4px;
+            border-radius: 50%;
+        }
+
+        .message-model-dot.cloud { background: var(--accent-cloud); }
+        .message-model-dot.local { background: var(--accent-local); }
+
+        .ai-input-area {
+            padding: 16px 20px;
+            border-top: 1px solid var(--glass-border);
+            background: var(--bg-tertiary);
+        }
+
+        .ai-input-wrapper {
+            display: flex;
+            gap: 12px;
+            align-items: flex-end;
+        }
+
+        .ai-input-container {
+            flex: 1;
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            transition: all 0.3s var(--transition-smooth);
+        }
+
+        .ai-input-container:focus-within {
+            border-color: rgba(16, 185, 129, 0.3);
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+        }
+
+        .ai-input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            outline: none;
+            font-size: 14px;
+            color: var(--text-primary);
+            font-family: inherit;
+            resize: none;
+            min-height: 20px;
+            max-height: 100px;
+        }
+
+        .ai-input::placeholder {
+            color: var(--text-tertiary);
+        }
+
+        .ai-send-btn {
+            width: 40px;
+            height: 40px;
+            background: var(--gradient-ai);
+            border: none;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s var(--transition-smooth);
+            font-size: 18px;
+            color: white;
+        }
+
+        .ai-send-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 20px rgba(16, 185, 129, 0.3);
+        }
+
+        .ai-send-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .typing-indicator {
+            display: flex;
+            gap: 4px;
+            padding: 8px 0;
+        }
+
+        .typing-dot {
+            width: 6px;
+            height: 6px;
+            background: var(--accent-ai);
+            border-radius: 50%;
+            animation: typingBounce 1.4s infinite;
+        }
+
+        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes typingBounce {
+            0%, 60%, 100% { transform: translateY(0); }
+            30% { transform: translateY(-6px); }
+        }
+
+        .download-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s var(--transition-smooth);
+        }
+
+        .download-modal.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .download-dialog {
+            background: var(--bg-secondary);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            padding: 32px;
+            width: 400px;
+            max-width: 90%;
+        }
+
+        .download-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        .download-icon {
+            width: 48px;
+            height: 48px;
+            background: var(--gradient-ai);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+        }
+
+        .download-title {
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .download-desc {
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-bottom: 24px;
+        }
+
+        .download-path-input {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 10px;
+            padding: 12px 16px;
+            width: 100%;
+            font-size: 14px;
+            color: var(--text-primary);
+            font-family: 'JetBrains Mono', monospace;
+            margin-bottom: 16px;
+        }
+
+        .download-path-input:focus {
+            outline: none;
+            border-color: rgba(16, 185, 129, 0.3);
+        }
+
+        .download-format {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        .format-option {
+            flex: 1;
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 10px;
+            padding: 12px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .format-option:hover {
+            background: var(--glass-hover);
+        }
+
+        .format-option.active {
+            background: rgba(16, 185, 129, 0.1);
+            border-color: rgba(16, 185, 129, 0.3);
+        }
+
+        .format-icon {
+            font-size: 20px;
+            margin-bottom: 4px;
+        }
+
+        .format-name {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .download-buttons {
+            display: flex;
+            gap: 12px;
+        }
+
+        .download-btn {
+            flex: 1;
+            padding: 12px;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+
+        .download-btn.cancel {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            color: var(--text-secondary);
+        }
+
+        .download-btn.confirm {
+            background: var(--gradient-ai);
+            border: none;
+            color: white;
+        }
+
+        .download-btn:hover {
+            transform: translateY(-1px);
+        }
+
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            text-align: center;
+            padding: 40px;
+        }
+
+        .empty-icon {
+            width: 80px;
+            height: 80px;
+            background: var(--glass-bg);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 40px;
+            margin-bottom: 20px;
+        }
+
+        .empty-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .empty-desc {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .quick-prompts {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 16px;
+        }
+
+        .quick-prompt {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-size: 12px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .quick-prompt:hover {
+            background: var(--glass-hover);
+            color: var(--text-primary);
+        }
+
+        @media (max-width: 1200px) {
+            .main-layout {
+                grid-template-columns: 1fr;
+            }
+
+            .ai-panel {
+                position: relative;
+                top: 0;
+                height: 500px;
+            }
         }
 
         @media (max-width: 768px) {
@@ -746,631 +933,255 @@
             }
 
             header {
-                padding: 20px 0;
-                flex-direction: column;
-                gap: 16px;
+                padding: 16px 0;
+            }
+
+            .hero-title {
+                font-size: 1.8rem;
+            }
+
+            .nav-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .ai-panel {
+                height: 400px;
             }
 
             .time-widget {
                 display: none;
             }
-
-            .hero {
-                padding: 60px 0 40px;
-            }
-
-            .hero h1 {
-                font-size: 2.5rem;
-            }
-
-            .hero-subtitle {
-                font-size: 1rem;
-            }
-
-            .search-shortcut {
-                display: none;
-            }
-
-            .card-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .section-header {
-                flex-direction: column;
-                align-items: flex-start;
-                gap: 12px;
-            }
-
-            .quick-actions {
-                grid-template-columns: repeat(2, 1fr);
-            }
-
-            .footer-links {
-                flex-wrap: wrap;
-                justify-content: center;
-            }
-        }
-
-        .scroll-indicator {
-            position: fixed;
-            bottom: 40px;
-            right: 40px;
-            width: 48px;
-            height: 48px;
-            background: var(--glass-bg);
-            border: 1px solid var(--glass-border);
-            border-radius: 14px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            opacity: 0;
-            transform: translateY(20px);
-            transition: all 0.3s var(--transition-smooth);
-            z-index: 100;
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-        }
-
-        .scroll-indicator.visible {
-            opacity: 1;
-            transform: translateY(0);
-        }
-
-        .scroll-indicator:hover {
-            background: var(--glass-hover);
-            transform: translateY(-2px);
-        }
-
-        .scroll-indicator svg {
-            width: 20px;
-            height: 20px;
-            color: var(--text-secondary);
-        }
-
-        .loading-skeleton {
-            background: linear-gradient(90deg, var(--glass-bg) 25%, rgba(255, 255, 255, 0.08) 50%, var(--glass-bg) 75%);
-            background-size: 200% 100%;
-            animation: shimmer 1.5s infinite;
-        }
-
-        @keyframes shimmer {
-            0% { background-position: 200% 0; }
-            100% { background-position: -200% 0; }
         }
     </style>
 </head>
 <body>
-    <canvas class="canvas-container" id="particleCanvas"></canvas>
-    <div class="gradient-layer"></div>
-    <div class="grid-overlay"></div>
+    <div class="bg-mesh"></div>
+    <div class="grid-pattern"></div>
     <div class="noise"></div>
-    <div class="cursor-glow" id="cursorGlow"></div>
 
     <div class="container">
         <header>
             <div class="logo">
-                <div class="logo-mark">N</div>
-                <span class="logo-text">Navigator</span>
+                <div class="logo-icon">🤖</div>
+                <span class="logo-text">AI Navigator</span>
+                <span class="logo-badge">PRO</span>
             </div>
-            <div class="header-actions">
+            <div class="header-right">
+                <div class="model-selector" id="modelSelector">
+                    <div class="model-indicator" id="modelIndicator"></div>
+                    <span class="model-name" id="modelName">GPT-4</span>
+                    <div class="model-dropdown">
+                        <div class="model-option active" data-model="cloud" onclick="selectModel('cloud', 'GPT-4')">
+                            <div class="model-option-icon cloud">☁️</div>
+                            <div class="model-option-info">
+                                <div class="model-option-name">GPT-4 (云端)</div>
+                                <div class="model-option-desc">OpenAI 最强模型</div>
+                            </div>
+                        </div>
+                        <div class="model-option" data-model="cloud" onclick="selectModel('cloud', 'Claude-3')">
+                            <div class="model-option-icon cloud">☁️</div>
+                            <div class="model-option-info">
+                                <div class="model-option-name">Claude-3 (云端)</div>
+                                <div class="model-option-desc">Anthropic 智能助手</div>
+                            </div>
+                        </div>
+                        <div class="model-option" data-model="local" onclick="selectModel('local', 'LLaMA-3')">
+                            <div class="model-option-icon local">💻</div>
+                            <div class="model-option-info">
+                                <div class="model-option-name">LLaMA-3 (本地)</div>
+                                <div class="model-option-desc">本地运行，隐私安全</div>
+                            </div>
+                        </div>
+                        <div class="model-option" data-model="local" onclick="selectModel('local', 'Mistral')">
+                            <div class="model-option-icon local">💻</div>
+                            <div class="model-option-info">
+                                <div class="model-option-name">Mistral (本地)</div>
+                                <div class="model-option-desc">轻量高效本地模型</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
                 <div class="time-widget">
                     <div class="time-display" id="timeDisplay">00:00</div>
-                    <div class="time-separator"></div>
-                    <div class="date-display" id="dateDisplay">加载中...</div>
+                    <div class="date-display" id="dateDisplay">加载中</div>
                 </div>
             </div>
         </header>
 
-        <section class="hero">
-            <div class="hero-badge">
-                <span class="badge-dot"></span>
-                <span>快速访问你的数字世界</span>
+        <div class="main-layout">
+            <div class="nav-section">
+                <div class="hero">
+                    <h1 class="hero-title">智能<span>导航</span>中心</h1>
+                    <p class="hero-desc">集成AI问答的现代化导航页面，支持本地和云端大模型切换</p>
+                </div>
+
+                <div class="nav-grid">
+                    <a href="https://github.com" class="nav-card" target="_blank">
+                        <div class="nav-card-icon purple">💻</div>
+                        <div class="nav-card-content">
+                            <div class="nav-card-title">GitHub</div>
+                            <div class="nav-card-url">github.com</div>
+                        </div>
+                    </a>
+                    <a href="https://chat.openai.com" class="nav-card" target="_blank">
+                        <div class="nav-card-icon green">🤖</div>
+                        <div class="nav-card-content">
+                            <div class="nav-card-title">ChatGPT</div>
+                            <div class="nav-card-url">openai.com</div>
+                        </div>
+                    </a>
+                    <a href="https://claude.ai" class="nav-card" target="_blank">
+                        <div class="nav-card-icon blue">🎯</div>
+                        <div class="nav-card-content">
+                            <div class="nav-card-title">Claude</div>
+                            <div class="nav-card-url">anthropic.com</div>
+                        </div>
+                    </a>
+                    <a href="https://www.google.com" class="nav-card" target="_blank">
+                        <div class="nav-card-icon blue">🌐</div>
+                        <div class="nav-card-content">
+                            <div class="nav-card-title">Google</div>
+                            <div class="nav-card-url">google.com</div>
+                        </div>
+                    </a>
+                    <a href="https://www.notion.so" class="nav-card" target="_blank">
+                        <div class="nav-card-icon orange">📝</div>
+                        <div class="nav-card-content">
+                            <div class="nav-card-title">Notion</div>
+                            <div class="nav-card-url">notion.so</div>
+                        </div>
+                    </a>
+                    <a href="https://figma.com" class="nav-card" target="_blank">
+                        <div class="nav-card-icon purple">🎨</div>
+                        <div class="nav-card-content">
+                            <div class="nav-card-title">Figma</div>
+                            <div class="nav-card-url">figma.com</div>
+                        </div>
+                    </a>
+                    <a href="https://developer.mozilla.org" class="nav-card" target="_blank">
+                        <div class="nav-card-icon blue">📖</div>
+                        <div class="nav-card-content">
+                            <div class="nav-card-title">MDN Docs</div>
+                            <div class="nav-card-url">developer.mozilla.org</div>
+                        </div>
+                    </a>
+                    <a href="https://stackoverflow.com" class="nav-card" target="_blank">
+                        <div class="nav-card-icon orange">💡</div>
+                        <div class="nav-card-content">
+                            <div class="nav-card-title">Stack Overflow</div>
+                            <div class="nav-card-url">stackoverflow.com</div>
+                        </div>
+                    </a>
+                    <a href="https://dribbble.com" class="nav-card" target="_blank">
+                        <div class="nav-card-icon purple">🏀</div>
+                        <div class="nav-card-content">
+                            <div class="nav-card-title">Dribbble</div>
+                            <div class="nav-card-url">dribbble.com</div>
+                        </div>
+                    </a>
+                    <a href="https://unsplash.com" class="nav-card" target="_blank">
+                        <div class="nav-card-icon green">📷</div>
+                        <div class="nav-card-content">
+                            <div class="nav-card-title">Unsplash</div>
+                            <div class="nav-card-url">unsplash.com</div>
+                        </div>
+                    </a>
+                    <a href="https://leetcode.com" class="nav-card" target="_blank">
+                        <div class="nav-card-icon orange">🔧</div>
+                        <div class="nav-card-content">
+                            <div class="nav-card-title">LeetCode</div>
+                            <div class="nav-card-url">leetcode.com</div>
+                        </div>
+                    </a>
+                    <a href="https://www.canva.com" class="nav-card" target="_blank">
+                        <div class="nav-card-icon purple">🎭</div>
+                        <div class="nav-card-content">
+                            <div class="nav-card-title">Canva</div>
+                            <div class="nav-card-url">canva.com</div>
+                        </div>
+                    </a>
+                </div>
             </div>
-            <h1>发现<span>无限</span>可能</h1>
-            <p class="hero-subtitle">精心策划的网站导航，助你高效探索互联网的每一个角落</p>
-            
-            <div class="search-container">
-                <div class="search-wrapper">
-                    <span class="search-icon">🔍</span>
-                    <input type="text" class="search-input" placeholder="搜索网站或输入网址..." id="searchInput" autocomplete="off">
-                    <div class="search-shortcut">
-                        <span class="shortcut-key">⌘</span>
-                        <span class="shortcut-key">K</span>
+
+            <div class="ai-panel">
+                <div class="ai-header">
+                    <div class="ai-title-group">
+                        <div class="ai-icon">✨</div>
+                        <div>
+                            <div class="ai-title">AI 问答</div>
+                            <div class="ai-status">
+                                <div class="ai-status-dot"></div>
+                                <span id="aiStatusText">在线</span>
+                            </div>
+                        </div>
                     </div>
-                    <button class="search-btn" onclick="handleSearch()">搜索</button>
+                    <div class="ai-actions">
+                        <div class="ai-action-btn" onclick="clearChat()" title="清空对话">🗑️</div>
+                        <div class="ai-action-btn" onclick="openDownloadModal()" title="下载记录">📥</div>
+                    </div>
                 </div>
-                <div class="search-suggestions">
-                    <span class="suggestion-tag" onclick="quickSearch('AI工具')">AI工具</span>
-                    <span class="suggestion-tag" onclick="quickSearch('设计资源')">设计资源</span>
-                    <span class="suggestion-tag" onclick="quickSearch('开发文档')">开发文档</span>
-                    <span class="suggestion-tag" onclick="quickSearch('效率工具')">效率工具</span>
+
+                <div class="ai-messages" id="aiMessages">
+                    <div class="empty-state" id="emptyState">
+                        <div class="empty-icon">💬</div>
+                        <div class="empty-title">开始对话</div>
+                        <div class="empty-desc">输入问题，AI 将为你解答</div>
+                        <div class="quick-prompts">
+                            <div class="quick-prompt" onclick="sendQuickPrompt('帮我写一段Python代码')">Python代码</div>
+                            <div class="quick-prompt" onclick="sendQuickPrompt('解释一下什么是机器学习')">机器学习</div>
+                            <div class="quick-prompt" onclick="sendQuickPrompt('推荐一些学习资源')">学习资源</div>
+                            <div class="quick-prompt" onclick="sendQuickPrompt('帮我优化这段代码')">代码优化</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="ai-input-area">
+                    <div class="ai-input-wrapper">
+                        <div class="ai-input-container">
+                            <textarea class="ai-input" id="aiInput" placeholder="输入你的问题..." rows="1" onkeydown="handleKeyDown(event)"></textarea>
+                        </div>
+                        <button class="ai-send-btn" id="sendBtn" onclick="sendMessage()">➤</button>
+                    </div>
                 </div>
             </div>
-        </section>
-
-        <main class="main-content">
-            <section class="section" data-section>
-                <div class="section-header">
-                    <div class="section-title-group">
-                        <div class="section-icon blue">⚡</div>
-                        <h2 class="section-title">常用工具</h2>
-                    </div>
-                    <span class="section-count">6 个网站</span>
-                </div>
-                <div class="card-grid">
-                    <a href="https://www.google.com" class="card" target="_blank" rel="noopener">
-                        <div class="card-header">
-                            <div class="card-icon gradient-blue">🌐</div>
-                            <div class="card-info">
-                                <div class="card-title">Google</div>
-                                <div class="card-url">google.com</div>
-                            </div>
-                        </div>
-                        <p class="card-desc">全球领先的搜索引擎，快速精准地找到你需要的任何信息</p>
-                        <div class="card-arrow">→</div>
-                    </a>
-
-                    <a href="https://github.com" class="card" target="_blank" rel="noopener">
-                        <div class="card-header">
-                            <div class="card-icon gradient-purple">💻</div>
-                            <div class="card-info">
-                                <div class="card-title">
-                                    GitHub
-                                    <span class="card-badge">热门</span>
-                                </div>
-                                <div class="card-url">github.com</div>
-                            </div>
-                        </div>
-                        <p class="card-desc">全球最大的代码托管平台，开源项目的聚集地</p>
-                        <div class="card-arrow">→</div>
-                    </a>
-
-                    <a href="https://chat.openai.com" class="card" target="_blank" rel="noopener">
-                        <div class="card-header">
-                            <div class="card-icon gradient-cyan">🤖</div>
-                            <div class="card-info">
-                                <div class="card-title">
-                                    ChatGPT
-                                    <span class="card-badge">AI</span>
-                                </div>
-                                <div class="card-url">openai.com</div>
-                            </div>
-                        </div>
-                        <p class="card-desc">强大的AI对话助手，助力写作、编程、分析等任务</p>
-                        <div class="card-arrow">→</div>
-                    </a>
-
-                    <a href="https://claude.ai" class="card" target="_blank" rel="noopener">
-                        <div class="card-header">
-                            <div class="card-icon gradient-orange">🎯</div>
-                            <div class="card-info">
-                                <div class="card-title">
-                                    Claude
-                                    <span class="card-badge">AI</span>
-                                </div>
-                                <div class="card-url">anthropic.com</div>
-                            </div>
-                        </div>
-                        <p class="card-desc">安全、有帮助的AI助手，擅长长文本理解和分析</p>
-                        <div class="card-arrow">→</div>
-                    </a>
-
-                    <a href="https://www.notion.so" class="card" target="_blank" rel="noopener">
-                        <div class="card-header">
-                            <div class="card-icon gradient-pink">📝</div>
-                            <div class="card-info">
-                                <div class="card-title">Notion</div>
-                                <div class="card-url">notion.so</div>
-                            </div>
-                        </div>
-                        <p class="card-desc">一站式笔记与协作工具，打造个人知识管理系统</p>
-                        <div class="card-arrow">→</div>
-                    </a>
-
-                    <a href="https://figma.com" class="card" target="_blank" rel="noopener">
-                        <div class="card-header">
-                            <div class="card-icon gradient-green">🎨</div>
-                            <div class="card-info">
-                                <div class="card-title">Figma</div>
-                                <div class="card-url">figma.com</div>
-                            </div>
-                        </div>
-                        <p class="card-desc">专业级在线设计工具，支持实时协作</p>
-                        <div class="card-arrow">→</div>
-                    </a>
-                </div>
-            </section>
-
-            <section class="section" data-section>
-                <div class="section-header">
-                    <div class="section-title-group">
-                        <div class="section-icon purple">📚</div>
-                        <h2 class="section-title">学习资源</h2>
-                    </div>
-                    <span class="section-count">6 个网站</span>
-                </div>
-                <div class="card-grid">
-                    <a href="https://developer.mozilla.org" class="card" target="_blank" rel="noopener">
-                        <div class="card-header">
-                            <div class="card-icon gradient-blue">📖</div>
-                            <div class="card-info">
-                                <div class="card-title">MDN Web Docs</div>
-                                <div class="card-url">developer.mozilla.org</div>
-                            </div>
-                        </div>
-                        <p class="card-desc">Web开发权威文档，涵盖HTML、CSS、JavaScript等技术</p>
-                        <div class="card-arrow">→</div>
-                    </a>
-
-                    <a href="https://stackoverflow.com" class="card" target="_blank" rel="noopener">
-                        <div class="card-header">
-                            <div class="card-icon gradient-orange">💡</div>
-                            <div class="card-info">
-                                <div class="card-title">Stack Overflow</div>
-                                <div class="card-url">stackoverflow.com</div>
-                            </div>
-                        </div>
-                        <p class="card-desc">程序员问答社区，快速解决编程难题</p>
-                        <div class="card-arrow">→</div>
-                    </a>
-
-                    <a href="https://www.coursera.org" class="card" target="_blank" rel="noopener">
-                        <div class="card-header">
-                            <div class="card-icon gradient-indigo">🎓</div>
-                            <div class="card-info">
-                                <div class="card-title">Coursera</div>
-                                <div class="card-url">coursera.org</div>
-                            </div>
-                        </div>
-                        <p class="card-desc">世界顶级大学在线课程平台</p>
-                        <div class="card-arrow">→</div>
-                    </a>
-
-                    <a href="https://www.youtube.com" class="card" target="_blank" rel="noopener">
-                        <div class="card-header">
-                            <div class="card-icon gradient-red">🎬</div>
-                            <div class="card-info">
-                                <div class="card-title">YouTube</div>
-                                <div class="card-url">youtube.com</div>
-                            </div>
-                        </div>
-                        <p class="card-desc">全球最大视频平台，海量学习资源</p>
-                        <div class="card-arrow">→</div>
-                    </a>
-
-                    <a href="https://leetcode.com" class="card" target="_blank" rel="noopener">
-                        <div class="card-header">
-                            <div class="card-icon gradient-cyan">🔧</div>
-                            <div class="card-info">
-                                <div class="card-title">LeetCode</div>
-                                <div class="card-url">leetcode.com</div>
-                            </div>
-                        </div>
-                        <p class="card-desc">算法刷题平台，提升编程能力</p>
-                        <div class="card-arrow">→</div>
-                    </a>
-
-                    <a href="https://www.freecodecamp.org" class="card" target="_blank" rel="noopener">
-                        <div class="card-header">
-                            <div class="card-icon gradient-green">🆓</div>
-                            <div class="card-info">
-                                <div class="card-title">freeCodeCamp</div>
-                                <div class="card-url">freecodecamp.org</div>
-                            </div>
-                        </div>
-                        <p class="card-desc">免费编程学习平台，项目驱动学习</p>
-                        <div class="card-arrow">→</div>
-                    </a>
-                </div>
-            </section>
-
-            <section class="section" data-section>
-                <div class="section-header">
-                    <div class="section-title-group">
-                        <div class="section-icon pink">🎨</div>
-                        <h2 class="section-title">设计灵感</h2>
-                    </div>
-                    <span class="section-count">6 个网站</span>
-                </div>
-                <div class="card-grid">
-                    <a href="https://dribbble.com" class="card" target="_blank" rel="noopener">
-                        <div class="card-header">
-                            <div class="card-icon gradient-pink">🏀</div>
-                            <div class="card-info">
-                                <div class="card-title">Dribbble</div>
-                                <div class="card-url">dribbble.com</div>
-                            </div>
-                        </div>
-                        <p class="card-desc">设计师作品展示平台，获取创意灵感</p>
-                        <div class="card-arrow">→</div>
-                    </a>
-
-                    <a href="https://www.behance.net" class="card" target="_blank" rel="noopener">
-                        <div class="card-header">
-                            <div class="card-icon gradient-blue">🖼️</div>
-                            <div class="card-info">
-                                <div class="card-title">Behance</div>
-                                <div class="card-url">behance.net</div>
-                            </div>
-                        </div>
-                        <p class="card-desc">Adobe旗下创意作品展示平台</p>
-                        <div class="card-arrow">→</div>
-                    </a>
-
-                    <a href="https://unsplash.com" class="card" target="_blank" rel="noopener">
-                        <div class="card-header">
-                            <div class="card-icon gradient-cyan">📷</div>
-                            <div class="card-info">
-                                <div class="card-title">Unsplash</div>
-                                <div class="card-url">unsplash.com</div>
-                            </div>
-                        </div>
-                        <p class="card-desc">高质量免费图片资源，无版权限制</p>
-                        <div class="card-arrow">→</div>
-                    </a>
-
-                    <a href="https://coolors.co" class="card" target="_blank" rel="noopener">
-                        <div class="card-header">
-                            <div class="card-icon gradient-orange">🌈</div>
-                            <div class="card-info">
-                                <div class="card-title">Coolors</div>
-                                <div class="card-url">coolors.co</div>
-                            </div>
-                        </div>
-                        <p class="card-desc">配色方案生成器，快速找到完美配色</p>
-                        <div class="card-arrow">→</div>
-                    </a>
-
-                    <a href="https://www.awwwards.com" class="card" target="_blank" rel="noopener">
-                        <div class="card-header">
-                            <div class="card-icon gradient-purple">🏆</div>
-                            <div class="card-info">
-                                <div class="card-title">Awwwards</div>
-                                <div class="card-url">awwwards.com</div>
-                            </div>
-                        </div>
-                        <p class="card-desc">网页设计大奖，发现最佳网站设计</p>
-                        <div class="card-arrow">→</div>
-                    </a>
-
-                    <a href="https://www.figma.com/community" class="card" target="_blank" rel="noopener">
-                        <div class="card-header">
-                            <div class="card-icon gradient-green">👥</div>
-                            <div class="card-info">
-                                <div class="card-title">Figma Community</div>
-                                <div class="card-url">figma.com/community</div>
-                            </div>
-                        </div>
-                        <p class="card-desc">Figma设计资源社区，海量免费模板</p>
-                        <div class="card-arrow">→</div>
-                    </a>
-                </div>
-            </section>
-
-            <section class="section" data-section>
-                <div class="section-header">
-                    <div class="section-title-group">
-                        <div class="section-icon cyan">⚡</div>
-                        <h2 class="section-title">效率工具</h2>
-                    </div>
-                    <span class="section-count">6 个网站</span>
-                </div>
-                <div class="card-grid">
-                    <a href="https://trello.com" class="card" target="_blank" rel="noopener">
-                        <div class="card-header">
-                            <div class="card-icon gradient-blue">📋</div>
-                            <div class="card-info">
-                                <div class="card-title">Trello</div>
-                                <div class="card-url">trello.com</div>
-                            </div>
-                        </div>
-                        <p class="card-desc">看板式项目管理工具，让工作井井有条</p>
-                        <div class="card-arrow">→</div>
-                    </a>
-
-                    <a href="https://www.1password.com" class="card" target="_blank" rel="noopener">
-                        <div class="card-header">
-                            <div class="card-icon gradient-indigo">🔐</div>
-                            <div class="card-info">
-                                <div class="card-title">1Password</div>
-                                <div class="card-url">1password.com</div>
-                            </div>
-                        </div>
-                        <p class="card-desc">安全密码管理器，保护你的数字身份</p>
-                        <div class="card-arrow">→</div>
-                    </a>
-
-                    <a href="https://www.grammarly.com" class="card" target="_blank" rel="noopener">
-                        <div class="card-header">
-                            <div class="card-icon gradient-green">✍️</div>
-                            <div class="card-info">
-                                <div class="card-title">Grammarly</div>
-                                <div class="card-url">grammarly.com</div>
-                            </div>
-                        </div>
-                        <p class="card-desc">AI写作助手，提升英文写作质量</p>
-                        <div class="card-arrow">→</div>
-                    </a>
-
-                    <a href="https://www.canva.com" class="card" target="_blank" rel="noopener">
-                        <div class="card-header">
-                            <div class="card-icon gradient-pink">🎭</div>
-                            <div class="card-info">
-                                <div class="card-title">Canva</div>
-                                <div class="card-url">canva.com</div>
-                            </div>
-                        </div>
-                        <p class="card-desc">在线设计平台，轻松创建精美设计</p>
-                        <div class="card-arrow">→</div>
-                    </a>
-
-                    <a href="https://zapier.com" class="card" target="_blank" rel="noopener">
-                        <div class="card-header">
-                            <div class="card-icon gradient-orange">⚡</div>
-                            <div class="card-info">
-                                <div class="card-title">Zapier</div>
-                                <div class="card-url">zapier.com</div>
-                            </div>
-                        </div>
-                        <p class="card-desc">自动化工作流，连接你的所有工具</p>
-                        <div class="card-arrow">→</div>
-                    </a>
-
-                    <a href="https://raycast.com" class="card" target="_blank" rel="noopener">
-                        <div class="card-header">
-                            <div class="card-icon gradient-purple">🚀</div>
-                            <div class="card-info">
-                                <div class="card-title">Raycast</div>
-                                <div class="card-url">raycast.com</div>
-                            </div>
-                        </div>
-                        <p class="card-desc">Mac效率启动器，快速访问一切</p>
-                        <div class="card-arrow">→</div>
-                    </a>
-                </div>
-            </section>
-
-            <div class="quick-actions">
-                <a href="https://mail.google.com" class="quick-action" target="_blank" rel="noopener">
-                    <div class="quick-action-icon">📧</div>
-                    <span class="quick-action-text">Gmail</span>
-                </a>
-                <a href="https://drive.google.com" class="quick-action" target="_blank" rel="noopener">
-                    <div class="quick-action-icon">📁</div>
-                    <span class="quick-action-text">云盘</span>
-                </a>
-                <a href="https://translate.google.com" class="quick-action" target="_blank" rel="noopener">
-                    <div class="quick-action-icon">🌐</div>
-                    <span class="quick-action-text">翻译</span>
-                </a>
-                <a href="https://maps.google.com" class="quick-action" target="_blank" rel="noopener">
-                    <div class="quick-action-icon">🗺️</div>
-                    <span class="quick-action-text">地图</span>
-                </a>
-                <a href="https://calendar.google.com" class="quick-action" target="_blank" rel="noopener">
-                    <div class="quick-action-icon">📅</div>
-                    <span class="quick-action-text">日历</span>
-                </a>
-                <a href="https://photos.google.com" class="quick-action" target="_blank" rel="noopener">
-                    <div class="quick-action-icon">🖼️</div>
-                    <span class="quick-action-text">相册</span>
-                </a>
-            </div>
-        </main>
-
-        <footer>
-            <div class="footer-content">
-                <div class="footer-links">
-                    <a href="#" class="footer-link">关于</a>
-                    <a href="#" class="footer-link">反馈</a>
-                    <a href="#" class="footer-link">隐私</a>
-                    <a href="#" class="footer-link">条款</a>
-                </div>
-                <p class="footer-text">用 <span>♥</span> 打造 · Navigator Pro</p>
-            </div>
-        </footer>
+        </div>
     </div>
 
-    <div class="scroll-indicator" id="scrollIndicator" onclick="scrollToTop()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M18 15l-6-6-6 6"/>
-        </svg>
+    <div class="download-modal" id="downloadModal">
+        <div class="download-dialog">
+            <div class="download-header">
+                <div class="download-icon">📥</div>
+                <div class="download-title">下载对话记录</div>
+            </div>
+            <div class="download-desc">选择保存位置和格式，导出完整的对话历史</div>
+            <input type="text" class="download-path-input" id="downloadPath" value="/workspace/conversations/" placeholder="输入保存路径...">
+            <div class="download-format">
+                <div class="format-option active" data-format="md" onclick="selectFormat('md')">
+                    <div class="format-icon">📝</div>
+                    <div class="format-name">Markdown</div>
+                </div>
+                <div class="format-option" data-format="txt" onclick="selectFormat('txt')">
+                    <div class="format-icon">📄</div>
+                    <div class="format-name">TXT</div>
+                </div>
+                <div class="format-option" data-format="json" onclick="selectFormat('json')">
+                    <div class="format-icon">📊</div>
+                    <div class="format-name">JSON</div>
+                </div>
+            </div>
+            <div class="download-buttons">
+                <button class="download-btn cancel" onclick="closeDownloadModal()">取消</button>
+                <button class="download-btn confirm" onclick="downloadConversation()">下载</button>
+            </div>
+        </div>
     </div>
 
     <script>
-        const canvas = document.getElementById('particleCanvas');
-        const ctx = canvas.getContext('2d');
-        let particles = [];
-        let mouseX = 0;
-        let mouseY = 0;
-
-        function resizeCanvas() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-        }
-
-        resizeCanvas();
-        window.addEventListener('resize', resizeCanvas);
-
-        class Particle {
-            constructor() {
-                this.reset();
-            }
-
-            reset() {
-                this.x = Math.random() * canvas.width;
-                this.y = Math.random() * canvas.height;
-                this.size = Math.random() * 2 + 0.5;
-                this.speedX = (Math.random() - 0.5) * 0.5;
-                this.speedY = (Math.random() - 0.5) * 0.5;
-                this.opacity = Math.random() * 0.5 + 0.1;
-            }
-
-            update() {
-                this.x += this.speedX;
-                this.y += this.speedY;
-
-                const dx = mouseX - this.x;
-                const dy = mouseY - this.y;
-                const dist = Math.sqrt(dx * dx + dy * dy);
-                
-                if (dist < 150) {
-                    const force = (150 - dist) / 150;
-                    this.x -= dx * force * 0.02;
-                    this.y -= dy * force * 0.02;
-                }
-
-                if (this.x < 0 || this.x > canvas.width || this.y < 0 || this.y > canvas.height) {
-                    this.reset();
-                }
-            }
-
-            draw() {
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-                ctx.fillStyle = `rgba(255, 255, 255, ${this.opacity})`;
-                ctx.fill();
-            }
-        }
-
-        function initParticles() {
-            const particleCount = Math.min(100, Math.floor((canvas.width * canvas.height) / 15000));
-            particles = [];
-            for (let i = 0; i < particleCount; i++) {
-                particles.push(new Particle());
-            }
-        }
-
-        initParticles();
-        window.addEventListener('resize', initParticles);
-
-        function animate() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            particles.forEach(particle => {
-                particle.update();
-                particle.draw();
-            });
-
-            requestAnimationFrame(animate);
-        }
-
-        animate();
-
-        const cursorGlow = document.getElementById('cursorGlow');
-        
-        document.addEventListener('mousemove', (e) => {
-            mouseX = e.clientX;
-            mouseY = e.clientY;
-            cursorGlow.style.left = e.clientX + 'px';
-            cursorGlow.style.top = e.clientY + 'px';
-            cursorGlow.style.opacity = '1';
-        });
-
-        document.addEventListener('mouseleave', () => {
-            cursorGlow.style.opacity = '0';
-        });
+        let currentModel = 'cloud';
+        let currentModelName = 'GPT-4';
+        let currentFormat = 'md';
+        let conversations = [];
+        let isTyping = false;
 
         function updateTime() {
             const now = new Date();
@@ -1381,78 +1192,377 @@
             const minutes = String(now.getMinutes()).padStart(2, '0');
             timeEl.textContent = `${hours}:${minutes}`;
             
-            const options = { month: 'short', day: 'numeric', weekday: 'short' };
+            const options = { month: 'short', day: 'numeric' };
             dateEl.textContent = now.toLocaleDateString('zh-CN', options);
         }
 
         updateTime();
         setInterval(updateTime, 1000);
 
-        function handleSearch() {
-            const input = document.getElementById('searchInput').value.trim();
-            if (input) {
-                if (input.includes('.') && !input.includes(' ')) {
-                    let url = input;
-                    if (!url.startsWith('http://') && !url.startsWith('https://')) {
-                        url = 'https://' + url;
-                    }
-                    window.open(url, '_blank');
-                } else {
-                    window.open(`https://www.google.com/search?q=${encodeURIComponent(input)}`, '_blank');
+        function selectModel(type, name) {
+            currentModel = type;
+            currentModelName = name;
+            
+            const indicator = document.getElementById('modelIndicator');
+            const nameEl = document.getElementById('modelName');
+            const statusText = document.getElementById('aiStatusText');
+            
+            indicator.className = 'model-indicator ' + type;
+            nameEl.textContent = name;
+            
+            if (type === 'local') {
+                statusText.textContent = '本地运行';
+            } else {
+                statusText.textContent = '云端连接';
+            }
+
+            document.querySelectorAll('.model-option').forEach(opt => {
+                opt.classList.remove('active');
+                if (opt.querySelector('.model-option-name').textContent.includes(name)) {
+                    opt.classList.add('active');
+                }
+            });
+        }
+
+        function handleKeyDown(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        }
+
+        function autoResizeInput() {
+            const input = document.getElementById('aiInput');
+            input.style.height = 'auto';
+            input.style.height = Math.min(input.scrollHeight, 100) + 'px';
+        }
+
+        document.getElementById('aiInput').addEventListener('input', autoResizeInput);
+
+        function sendQuickPrompt(text) {
+            document.getElementById('aiInput').value = text;
+            sendMessage();
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('aiInput');
+            const text = input.value.trim();
+            
+            if (!text || isTyping) return;
+
+            document.getElementById('emptyState').style.display = 'none';
+
+            const userMessage = {
+                role: 'user',
+                content: text,
+                timestamp: new Date().toISOString(),
+                model: currentModelName
+            };
+            conversations.push(userMessage);
+            renderMessage(userMessage);
+
+            input.value = '';
+            autoResizeInput();
+
+            showTypingIndicator();
+            isTyping = true;
+
+            setTimeout(() => {
+                const aiResponse = generateAIResponse(text);
+                hideTypingIndicator();
+                isTyping = false;
+
+                const aiMessage = {
+                    role: 'ai',
+                    content: aiResponse,
+                    timestamp: new Date().toISOString(),
+                    model: currentModelName,
+                    modelType: currentModel
+                };
+                conversations.push(aiMessage);
+                renderMessage(aiMessage);
+            }, 1500 + Math.random() * 1000);
+        }
+
+        function generateAIResponse(question) {
+            const responses = {
+                'Python': `好的！这里是一个简单的Python示例：
+
+\`\`\`python
+def hello_world():
+    """一个简单的问候函数"""
+    print("Hello, World!")
+    return True
+
+if __name__ == "__main__":
+    hello_world()
+\`\`\`
+
+这是一个基础的Python函数，你可以根据需要扩展它。需要更复杂的示例吗？`,
+                '机器学习': `机器学习是人工智能的一个分支，它使计算机能够从数据中学习并做出决策或预测，而无需明确编程。
+
+**主要类型：**
+1. **监督学习** - 使用标记数据训练
+2. **无监督学习** - 发现数据中的模式
+3. **强化学习** - 通过奖励机制学习
+
+**常见应用：**
+- 图像识别
+- 自然语言处理
+- 推荐系统
+- 预测分析
+
+想深入了解某个方面吗？`,
+                '学习资源': `以下是一些优质的学习资源推荐：
+
+**编程学习：**
+- freeCodeCamp - 免费编程课程
+- LeetCode - 算法练习
+- MDN Web Docs - Web开发文档
+
+**AI/ML学习：**
+- Coursera - 顶级大学课程
+- fast.ai - 实用深度学习
+- Kaggle - 数据科学竞赛
+
+**设计资源：**
+- Dribbble - 设计灵感
+- Figma Community - 设计模板
+- Unsplash - 高质量图片
+
+需要针对特定领域的推荐吗？`,
+                '代码优化': `代码优化的几个关键原则：
+
+**1. 可读性优先**
+- 使用清晰的变量命名
+- 保持函数简洁
+- 添加必要的注释
+
+**2. 性能优化**
+- 避免重复计算
+- 使用合适的数据结构
+- 减少不必要的循环
+
+**3. 最佳实践**
+- 遵循语言规范
+- 使用版本控制
+- 编写单元测试
+
+请分享你的具体代码，我可以给出更针对性的建议！`,
+                'default': `感谢你的提问！作为AI助手，我可以帮助你：
+
+✨ **代码编写与调试**
+📚 **技术概念解释**
+💡 **学习资源推荐**
+🔧 **问题解决方案**
+
+当前使用 **${currentModelName}** 模型（${currentModel === 'local' ? '本地运行' : '云端连接'}）。
+
+请告诉我你具体需要什么帮助？`
+            };
+
+            for (const key in responses) {
+                if (question.includes(key)) {
+                    return responses[key];
                 }
             }
+            return responses['default'];
         }
 
-        function quickSearch(term) {
-            document.getElementById('searchInput').value = term;
-            handleSearch();
+        function renderMessage(msg) {
+            const container = document.getElementById('aiMessages');
+            const div = document.createElement('div');
+            div.className = 'message';
+
+            const avatarClass = msg.role === 'user' ? 'user' : 'ai';
+            const contentClass = msg.role === 'user' ? 'user' : '';
+            const avatarIcon = msg.role === 'user' ? '👤' : '🤖';
+
+            const formattedContent = formatMessageContent(msg.content);
+
+            div.innerHTML = `
+                <div class="message-avatar ${avatarClass}">${avatarIcon}</div>
+                <div class="message-content ${contentClass}">
+                    <div class="message-text">${formattedContent}</div>
+                    <div class="message-meta">
+                        <span>${formatTime(msg.timestamp)}</span>
+                        <span class="message-model">
+                            <span class="message-model-dot ${msg.modelType || 'cloud'}"></span>
+                            ${msg.model}
+                        </span>
+                    </div>
+                </div>
+            `;
+
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
         }
 
-        document.getElementById('searchInput').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                handleSearch();
+        function formatMessageContent(content) {
+            content = content.replace(/```(\w+)?\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>');
+            content = content.replace(/`([^`]+)`/g, '<code>$1</code>');
+            content = content.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+            content = content.replace(/\n/g, '<br>');
+            return content;
+        }
+
+        function formatTime(timestamp) {
+            const date = new Date(timestamp);
+            return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+        }
+
+        function showTypingIndicator() {
+            const container = document.getElementById('aiMessages');
+            const div = document.createElement('div');
+            div.className = 'message';
+            div.id = 'typingIndicator';
+
+            div.innerHTML = `
+                <div class="message-avatar ai">🤖</div>
+                <div class="message-content">
+                    <div class="typing-indicator">
+                        <div class="typing-dot"></div>
+                        <div class="typing-dot"></div>
+                        <div class="typing-dot"></div>
+                    </div>
+                </div>
+            `;
+
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function hideTypingIndicator() {
+            const indicator = document.getElementById('typingIndicator');
+            if (indicator) indicator.remove();
+        }
+
+        function clearChat() {
+            conversations = [];
+            const container = document.getElementById('aiMessages');
+            container.innerHTML = `
+                <div class="empty-state" id="emptyState">
+                    <div class="empty-icon">💬</div>
+                    <div class="empty-title">开始对话</div>
+                    <div class="empty-desc">输入问题，AI 将为你解答</div>
+                    <div class="quick-prompts">
+                        <div class="quick-prompt" onclick="sendQuickPrompt('帮我写一段Python代码')">Python代码</div>
+                        <div class="quick-prompt" onclick="sendQuickPrompt('解释一下什么是机器学习')">机器学习</div>
+                        <div class="quick-prompt" onclick="sendQuickPrompt('推荐一些学习资源')">学习资源</div>
+                        <div class="quick-prompt" onclick="sendQuickPrompt('帮我优化这段代码')">代码优化</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function openDownloadModal() {
+            if (conversations.length === 0) {
+                alert('暂无对话记录可下载');
+                return;
             }
-        });
+            document.getElementById('downloadModal').classList.add('active');
+        }
+
+        function closeDownloadModal() {
+            document.getElementById('downloadModal').classList.remove('active');
+        }
+
+        function selectFormat(format) {
+            currentFormat = format;
+            document.querySelectorAll('.format-option').forEach(opt => {
+                opt.classList.remove('active');
+                if (opt.dataset.format === format) {
+                    opt.classList.add('active');
+                }
+            });
+        }
+
+        function downloadConversation() {
+            const path = document.getElementById('downloadPath').value.trim();
+            const timestamp = new Date().toISOString().slice(0, 10);
+            const filename = `conversation_${timestamp}`;
+
+            let content = '';
+            let mimeType = 'text/plain';
+            let extension = currentFormat;
+
+            if (currentFormat === 'md') {
+                content = generateMarkdown();
+                mimeType = 'text/markdown';
+            } else if (currentFormat === 'txt') {
+                content = generateText();
+                mimeType = 'text/plain';
+            } else if (currentFormat === 'json') {
+                content = JSON.stringify({
+                    metadata: {
+                        model: currentModelName,
+                        modelType: currentModel,
+                        exportedAt: new Date().toISOString(),
+                        totalMessages: conversations.length
+                    },
+                    conversations: conversations
+                }, null, 2);
+                mimeType = 'application/json';
+            }
+
+            const blob = new Blob([content], { type: mimeType });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${filename}.${extension}`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            console.log(`文件已保存至: ${path}${filename}.${extension}`);
+            closeDownloadModal();
+        }
+
+        function generateMarkdown() {
+            let md = `# AI 对话记录\n\n`;
+            md += `**模型:** ${currentModelName} (${currentModel === 'local' ? '本地' : '云端'})\n`;
+            md += `**导出时间:** ${new Date().toLocaleString('zh-CN')}\n`;
+            md += `**消息数量:** ${conversations.length}\n\n---\n\n`;
+
+            conversations.forEach(msg => {
+                const role = msg.role === 'user' ? '👤 用户' : '🤖 AI';
+                const time = formatTime(msg.timestamp);
+                md += `### ${role} (${time})\n\n`;
+                md += `${msg.content}\n\n---\n\n`;
+            });
+
+            return md;
+        }
+
+        function generateText() {
+            let txt = `AI 对话记录\n`;
+            txt += `模型: ${currentModelName}\n`;
+            txt += `导出时间: ${new Date().toLocaleString('zh-CN')}\n`;
+            txt += `${'='.repeat(50)}\n\n`;
+
+            conversations.forEach(msg => {
+                const role = msg.role === 'user' ? '[用户]' : '[AI]';
+                const time = formatTime(msg.timestamp);
+                txt += `${role} ${time}\n`;
+                txt += `${msg.content}\n\n`;
+            });
+
+            return txt;
+        }
 
         document.addEventListener('keydown', function(e) {
             if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
                 e.preventDefault();
-                document.getElementById('searchInput').focus();
+                document.getElementById('aiInput').focus();
             }
         });
 
-        const sections = document.querySelectorAll('.section[data-section]');
-        
-        const observerOptions = {
-            threshold: 0.1,
-            rootMargin: '0px 0px -50px 0px'
-        };
-
-        const observer = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    entry.target.classList.add('visible');
-                }
-            });
-        }, observerOptions);
-
-        sections.forEach(section => {
-            observer.observe(section);
-        });
-
-        const scrollIndicator = document.getElementById('scrollIndicator');
-        
-        window.addEventListener('scroll', () => {
-            if (window.scrollY > 500) {
-                scrollIndicator.classList.add('visible');
-            } else {
-                scrollIndicator.classList.remove('visible');
+        document.getElementById('downloadModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeDownloadModal();
             }
         });
-
-        function scrollToTop() {
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
     </script>
 </body>
 </html>
