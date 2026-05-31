@@ -1,0 +1,899 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>导航中心 | Glassmorphism</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --glass-bg: rgba(255, 255, 255, 0.12);
+            --glass-border: rgba(255, 255, 255, 0.25);
+            --glass-shadow: rgba(0, 0, 0, 0.1);
+            --text-primary: rgba(255, 255, 255, 0.95);
+            --text-secondary: rgba(255, 255, 255, 0.75);
+            --accent-coral: #ff6b6b;
+            --accent-cyan: #4ecdc4;
+            --accent-gold: #ffd93d;
+            --accent-violet: #a855f7;
+        }
+
+        body {
+            min-height: 100vh;
+            font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 25%, #0f3460 50%, #1a1a2e 100%);
+            background-size: 400% 400%;
+            animation: gradientFlow 20s ease infinite;
+            overflow-x: hidden;
+            color: var(--text-primary);
+        }
+
+        @keyframes gradientFlow {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+        }
+
+        .bg-orbs {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 0;
+            overflow: hidden;
+        }
+
+        .orb {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(80px);
+            opacity: 0.5;
+            animation: orbFloat 25s infinite ease-in-out;
+        }
+
+        .orb-1 {
+            width: 500px;
+            height: 500px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            top: -150px;
+            left: -100px;
+            animation-delay: 0s;
+        }
+
+        .orb-2 {
+            width: 400px;
+            height: 400px;
+            background: linear-gradient(135deg, #f093fb, #f5576c);
+            top: 50%;
+            right: -100px;
+            animation-delay: -8s;
+        }
+
+        .orb-3 {
+            width: 350px;
+            height: 350px;
+            background: linear-gradient(135deg, #4facfe, #00f2fe);
+            bottom: -100px;
+            left: 30%;
+            animation-delay: -16s;
+        }
+
+        .orb-4 {
+            width: 300px;
+            height: 300px;
+            background: linear-gradient(135deg, #43e97b, #38f9d7);
+            top: 30%;
+            left: 10%;
+            animation-delay: -12s;
+        }
+
+        @keyframes orbFloat {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            25% { transform: translate(50px, -30px) scale(1.1); }
+            50% { transform: translate(-30px, 50px) scale(0.95); }
+            75% { transform: translate(30px, 30px) scale(1.05); }
+        }
+
+        .noise-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+            opacity: 0.03;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+        }
+
+        .container {
+            position: relative;
+            z-index: 2;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 20px;
+            min-height: 100vh;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 60px;
+            animation: fadeInDown 1s ease-out;
+        }
+
+        @keyframes fadeInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .logo {
+            display: inline-flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+
+        .logo-icon {
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(135deg, var(--accent-coral), var(--accent-violet));
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            box-shadow: 0 8px 32px rgba(168, 85, 247, 0.3);
+            animation: pulse 3s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); box-shadow: 0 8px 32px rgba(168, 85, 247, 0.3); }
+            50% { transform: scale(1.05); box-shadow: 0 12px 40px rgba(168, 85, 247, 0.4); }
+        }
+
+        h1 {
+            font-family: 'Playfair Display', serif;
+            font-size: clamp(2.5rem, 6vw, 4rem);
+            font-weight: 700;
+            background: linear-gradient(135deg, #fff 0%, #a855f7 50%, #4ecdc4 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: -1px;
+        }
+
+        .subtitle {
+            font-size: 1.1rem;
+            color: var(--text-secondary);
+            margin-top: 12px;
+            font-weight: 300;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        .search-container {
+            max-width: 600px;
+            margin: 40px auto;
+            animation: fadeInUp 1s ease-out 0.3s both;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .search-box {
+            position: relative;
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-radius: 60px;
+            border: 1px solid var(--glass-border);
+            padding: 8px;
+            display: flex;
+            align-items: center;
+            box-shadow: 
+                0 8px 32px var(--glass-shadow),
+                inset 0 1px 1px rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+        }
+
+        .search-box:focus-within {
+            border-color: rgba(168, 85, 247, 0.5);
+            box-shadow: 
+                0 8px 32px var(--glass-shadow),
+                0 0 0 4px rgba(168, 85, 247, 0.15),
+                inset 0 1px 1px rgba(255, 255, 255, 0.1);
+        }
+
+        .search-icon {
+            padding: 12px 16px;
+            font-size: 20px;
+            color: var(--text-secondary);
+        }
+
+        .search-input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            outline: none;
+            font-size: 1rem;
+            color: var(--text-primary);
+            font-family: inherit;
+        }
+
+        .search-input::placeholder {
+            color: var(--text-secondary);
+        }
+
+        .search-btn {
+            background: linear-gradient(135deg, var(--accent-violet), #6366f1);
+            border: none;
+            padding: 14px 28px;
+            border-radius: 50px;
+            color: white;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: inherit;
+        }
+
+        .search-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 20px rgba(168, 85, 247, 0.4);
+        }
+
+        .nav-section {
+            margin-bottom: 50px;
+            animation: fadeInUp 1s ease-out both;
+        }
+
+        .nav-section:nth-child(1) { animation-delay: 0.4s; }
+        .nav-section:nth-child(2) { animation-delay: 0.5s; }
+        .nav-section:nth-child(3) { animation-delay: 0.6s; }
+        .nav-section:nth-child(4) { animation-delay: 0.7s; }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        .section-icon {
+            width: 40px;
+            height: 40px;
+            background: var(--glass-bg);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            border: 1px solid var(--glass-border);
+        }
+
+        .section-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .nav-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 20px;
+        }
+
+        .nav-card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-radius: 20px;
+            border: 1px solid var(--glass-border);
+            padding: 24px;
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            text-decoration: none;
+            display: block;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .nav-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), transparent);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .nav-card:hover {
+            transform: translateY(-8px) scale(1.02);
+            border-color: rgba(255, 255, 255, 0.4);
+            box-shadow: 
+                0 20px 40px rgba(0, 0, 0, 0.2),
+                0 0 40px rgba(168, 85, 247, 0.1);
+        }
+
+        .nav-card:hover::before {
+            opacity: 1;
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 12px;
+        }
+
+        .card-icon {
+            width: 52px;
+            height: 52px;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            flex-shrink: 0;
+            transition: transform 0.3s ease;
+        }
+
+        .nav-card:hover .card-icon {
+            transform: rotate(-5deg) scale(1.1);
+        }
+
+        .card-icon.coral { background: linear-gradient(135deg, var(--accent-coral), #ff8e8e); }
+        .card-icon.cyan { background: linear-gradient(135deg, var(--accent-cyan), #6ee7b7); }
+        .card-icon.gold { background: linear-gradient(135deg, var(--accent-gold), #fbbf24); }
+        .card-icon.violet { background: linear-gradient(135deg, var(--accent-violet), #818cf8); }
+        .card-icon.blue { background: linear-gradient(135deg, #3b82f6, #60a5fa); }
+        .card-icon.pink { background: linear-gradient(135deg, #ec4899, #f472b6); }
+        .card-icon.green { background: linear-gradient(135deg, #10b981, #34d399); }
+        .card-icon.orange { background: linear-gradient(135deg, #f97316, #fb923c); }
+
+        .card-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+
+        .card-url {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            font-weight: 300;
+        }
+
+        .card-desc {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            line-height: 1.6;
+            font-weight: 300;
+        }
+
+        .card-tag {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            background: rgba(255, 255, 255, 0.15);
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .quick-links {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            justify-content: center;
+            margin-top: 60px;
+            animation: fadeInUp 1s ease-out 0.8s both;
+        }
+
+        .quick-link {
+            background: var(--glass-bg);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--glass-border);
+            padding: 12px 24px;
+            border-radius: 50px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .quick-link:hover {
+            background: rgba(255, 255, 255, 0.2);
+            color: var(--text-primary);
+            transform: translateY(-2px);
+        }
+
+        footer {
+            text-align: center;
+            padding: 40px 20px;
+            margin-top: 60px;
+            animation: fadeInUp 1s ease-out 1s both;
+        }
+
+        .footer-text {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            font-weight: 300;
+        }
+
+        .footer-heart {
+            color: var(--accent-coral);
+            animation: heartbeat 1.5s ease infinite;
+        }
+
+        @keyframes heartbeat {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+        }
+
+        .time-display {
+            position: fixed;
+            top: 30px;
+            right: 30px;
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            padding: 16px 24px;
+            text-align: center;
+            z-index: 100;
+            animation: fadeInDown 1s ease-out 0.5s both;
+        }
+
+        .time-display .time {
+            font-size: 1.8rem;
+            font-weight: 600;
+            background: linear-gradient(135deg, #fff, var(--accent-cyan));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .time-display .date {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 20px 16px;
+            }
+
+            header {
+                margin-bottom: 40px;
+            }
+
+            h1 {
+                font-size: 2rem;
+            }
+
+            .subtitle {
+                font-size: 0.9rem;
+            }
+
+            .nav-grid {
+                grid-template-columns: 1fr;
+                gap: 16px;
+            }
+
+            .time-display {
+                top: 10px;
+                right: 10px;
+                padding: 12px 16px;
+            }
+
+            .time-display .time {
+                font-size: 1.4rem;
+            }
+
+            .quick-links {
+                gap: 8px;
+            }
+
+            .quick-link {
+                padding: 10px 16px;
+                font-size: 0.8rem;
+            }
+        }
+
+        .particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+            overflow: hidden;
+        }
+
+        .particle {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.5);
+            border-radius: 50%;
+            animation: particleFloat 15s infinite linear;
+        }
+
+        @keyframes particleFloat {
+            0% {
+                transform: translateY(100vh) rotate(0deg);
+                opacity: 0;
+            }
+            10% {
+                opacity: 1;
+            }
+            90% {
+                opacity: 1;
+            }
+            100% {
+                transform: translateY(-100vh) rotate(720deg);
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-orbs">
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+        <div class="orb orb-3"></div>
+        <div class="orb orb-4"></div>
+    </div>
+    
+    <div class="noise-overlay"></div>
+    
+    <div class="particles" id="particles"></div>
+    
+    <div class="time-display">
+        <div class="time" id="time">00:00</div>
+        <div class="date" id="date">2024年1月1日</div>
+    </div>
+    
+    <div class="container">
+        <header>
+            <div class="logo">
+                <div class="logo-icon">✨</div>
+            </div>
+            <h1>导航中心</h1>
+            <p class="subtitle">探索无限可能</p>
+        </header>
+        
+        <div class="search-container">
+            <div class="search-box">
+                <span class="search-icon">🔍</span>
+                <input type="text" class="search-input" placeholder="搜索网站或输入网址..." id="searchInput">
+                <button class="search-btn" onclick="handleSearch()">搜索</button>
+            </div>
+        </div>
+        
+        <section class="nav-section">
+            <div class="section-header">
+                <div class="section-icon">🚀</div>
+                <h2 class="section-title">常用工具</h2>
+            </div>
+            <div class="nav-grid">
+                <a href="https://www.google.com" class="nav-card" target="_blank">
+                    <span class="card-tag">热门</span>
+                    <div class="card-header">
+                        <div class="card-icon blue">🌐</div>
+                        <div>
+                            <div class="card-title">Google</div>
+                            <div class="card-url">google.com</div>
+                        </div>
+                    </div>
+                    <p class="card-desc">全球最大的搜索引擎，快速找到你需要的信息</p>
+                </a>
+                
+                <a href="https://github.com" class="nav-card" target="_blank">
+                    <div class="card-header">
+                        <div class="card-icon violet">💻</div>
+                        <div>
+                            <div class="card-title">GitHub</div>
+                            <div class="card-url">github.com</div>
+                        </div>
+                    </div>
+                    <p class="card-desc">全球最大的代码托管平台，开源项目的家园</p>
+                </a>
+                
+                <a href="https://chat.openai.com" class="nav-card" target="_blank">
+                    <span class="card-tag">AI</span>
+                    <div class="card-header">
+                        <div class="card-icon cyan">🤖</div>
+                        <div>
+                            <div class="card-title">ChatGPT</div>
+                            <div class="card-url">openai.com</div>
+                        </div>
+                    </div>
+                    <p class="card-desc">强大的AI对话助手，帮助你解决各种问题</p>
+                </a>
+                
+                <a href="https://www.notion.so" class="nav-card" target="_blank">
+                    <div class="card-header">
+                        <div class="card-icon pink">📝</div>
+                        <div>
+                            <div class="card-title">Notion</div>
+                            <div class="card-url">notion.so</div>
+                        </div>
+                    </div>
+                    <p class="card-desc">一站式笔记与协作工具，打造你的第二大脑</p>
+                </a>
+            </div>
+        </section>
+        
+        <section class="nav-section">
+            <div class="section-header">
+                <div class="section-icon">📚</div>
+                <h2 class="section-title">学习资源</h2>
+            </div>
+            <div class="nav-grid">
+                <a href="https://developer.mozilla.org" class="nav-card" target="_blank">
+                    <div class="card-header">
+                        <div class="card-icon orange">📖</div>
+                        <div>
+                            <div class="card-title">MDN Web Docs</div>
+                            <div class="card-url">developer.mozilla.org</div>
+                        </div>
+                    </div>
+                    <p class="card-desc">Web开发者的权威文档，涵盖HTML、CSS、JavaScript等</p>
+                </a>
+                
+                <a href="https://stackoverflow.com" class="nav-card" target="_blank">
+                    <div class="card-header">
+                        <div class="card-icon coral">💡</div>
+                        <div>
+                            <div class="card-title">Stack Overflow</div>
+                            <div class="card-url">stackoverflow.com</div>
+                        </div>
+                    </div>
+                    <p class="card-desc">程序员问答社区，解决编程难题的首选</p>
+                </a>
+                
+                <a href="https://www.coursera.org" class="nav-card" target="_blank">
+                    <div class="card-header">
+                        <div class="card-icon green">🎓</div>
+                        <div>
+                            <div class="card-title">Coursera</div>
+                            <div class="card-url">coursera.org</div>
+                        </div>
+                    </div>
+                    <p class="card-desc">世界顶级大学的在线课程平台</p>
+                </a>
+                
+                <a href="https://www.youtube.com" class="nav-card" target="_blank">
+                    <span class="card-tag">视频</span>
+                    <div class="card-header">
+                        <div class="card-icon coral">🎬</div>
+                        <div>
+                            <div class="card-title">YouTube</div>
+                            <div class="card-url">youtube.com</div>
+                        </div>
+                    </div>
+                    <p class="card-desc">全球最大的视频平台，海量学习资源</p>
+                </a>
+            </div>
+        </section>
+        
+        <section class="nav-section">
+            <div class="section-header">
+                <div class="section-icon">🎨</div>
+                <h2 class="section-title">设计灵感</h2>
+            </div>
+            <div class="nav-grid">
+                <a href="https://dribbble.com" class="nav-card" target="_blank">
+                    <div class="card-header">
+                        <div class="card-icon pink">🏀</div>
+                        <div>
+                            <div class="card-title">Dribbble</div>
+                            <div class="card-url">dribbble.com</div>
+                        </div>
+                    </div>
+                    <p class="card-desc">设计师作品展示平台，获取设计灵感</p>
+                </a>
+                
+                <a href="https://www.figma.com" class="nav-card" target="_blank">
+                    <div class="card-header">
+                        <div class="card-icon violet">🎯</div>
+                        <div>
+                            <div class="card-title">Figma</div>
+                            <div class="card-url">figma.com</div>
+                        </div>
+                    </div>
+                    <p class="card-desc">协作设计工具，实时协作更高效</p>
+                </a>
+                
+                <a href="https://unsplash.com" class="nav-card" target="_blank">
+                    <div class="card-header">
+                        <div class="card-icon cyan">📷</div>
+                        <div>
+                            <div class="card-title">Unsplash</div>
+                            <div class="card-url">unsplash.com</div>
+                        </div>
+                    </div>
+                    <p class="card-desc">高质量免费图片资源，无版权限制</p>
+                </a>
+                
+                <a href="https://coolors.co" class="nav-card" target="_blank">
+                    <div class="card-header">
+                        <div class="card-icon gold">🎨</div>
+                        <div>
+                            <div class="card-title">Coolors</div>
+                            <div class="card-url">coolors.co</div>
+                        </div>
+                    </div>
+                    <p class="card-desc">配色方案生成器，快速找到完美配色</p>
+                </a>
+            </div>
+        </section>
+        
+        <section class="nav-section">
+            <div class="section-header">
+                <div class="section-icon">⚡</div>
+                <h2 class="section-title">效率工具</h2>
+            </div>
+            <div class="nav-grid">
+                <a href="https://trello.com" class="nav-card" target="_blank">
+                    <div class="card-header">
+                        <div class="card-icon blue">📋</div>
+                        <div>
+                            <div class="card-title">Trello</div>
+                            <div class="card-url">trello.com</div>
+                        </div>
+                    </div>
+                    <p class="card-desc">项目管理看板工具，让工作井井有条</p>
+                </a>
+                
+                <a href="https://www.lastpass.com" class="nav-card" target="_blank">
+                    <div class="card-header">
+                        <div class="card-icon green">🔐</div>
+                        <div>
+                            <div class="card-title">LastPass</div>
+                            <div class="card-url">lastpass.com</div>
+                        </div>
+                    </div>
+                    <p class="card-desc">密码管理器，安全存储所有密码</p>
+                </a>
+                
+                <a href="https://www.grammarly.com" class="nav-card" target="_blank">
+                    <div class="card-header">
+                        <div class="card-icon orange">✍️</div>
+                        <div>
+                            <div class="card-title">Grammarly</div>
+                            <div class="card-url">grammarly.com</div>
+                        </div>
+                    </div>
+                    <p class="card-desc">AI写作助手，提升英文写作质量</p>
+                </a>
+                
+                <a href="https://www.canva.com" class="nav-card" target="_blank">
+                    <div class="card-header">
+                        <div class="card-icon coral">🎭</div>
+                        <div>
+                            <div class="card-title">Canva</div>
+                            <div class="card-url">canva.com</div>
+                        </div>
+                    </div>
+                    <p class="card-desc">在线设计平台，轻松创建精美设计</p>
+                </a>
+            </div>
+        </section>
+        
+        <div class="quick-links">
+            <a href="https://mail.google.com" class="quick-link" target="_blank">📧 Gmail</a>
+            <a href="https://drive.google.com" class="quick-link" target="_blank">📁 云盘</a>
+            <a href="https://translate.google.com" class="quick-link" target="_blank">🌐 翻译</a>
+            <a href="https://maps.google.com" class="quick-link" target="_blank">🗺️ 地图</a>
+            <a href="https://news.google.com" class="quick-link" target="_blank">📰 新闻</a>
+            <a href="https://photos.google.com" class="quick-link" target="_blank">🖼️ 相册</a>
+        </div>
+        
+        <footer>
+            <p class="footer-text">用心打造 · <span class="footer-heart">♥</span> · 玻璃态设计</p>
+        </footer>
+    </div>
+    
+    <script>
+        function updateTime() {
+            const now = new Date();
+            const timeEl = document.getElementById('time');
+            const dateEl = document.getElementById('date');
+            
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            timeEl.textContent = `${hours}:${minutes}`;
+            
+            const options = { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' };
+            dateEl.textContent = now.toLocaleDateString('zh-CN', options);
+        }
+        
+        updateTime();
+        setInterval(updateTime, 1000);
+        
+        function handleSearch() {
+            const input = document.getElementById('searchInput').value.trim();
+            if (input) {
+                if (input.includes('.') && !input.includes(' ')) {
+                    let url = input;
+                    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                        url = 'https://' + url;
+                    }
+                    window.open(url, '_blank');
+                } else {
+                    window.open(`https://www.google.com/search?q=${encodeURIComponent(input)}`, '_blank');
+                }
+            }
+        }
+        
+        document.getElementById('searchInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                handleSearch();
+            }
+        });
+        
+        function createParticles() {
+            const container = document.getElementById('particles');
+            const particleCount = 30;
+            
+            for (let i = 0; i < particleCount; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'particle';
+                particle.style.left = Math.random() * 100 + '%';
+                particle.style.animationDelay = Math.random() * 15 + 's';
+                particle.style.animationDuration = (15 + Math.random() * 10) + 's';
+                particle.style.width = (2 + Math.random() * 3) + 'px';
+                particle.style.height = particle.style.width;
+                particle.style.opacity = 0.3 + Math.random() * 0.5;
+                container.appendChild(particle);
+            }
+        }
+        
+        createParticles();
+        
+        document.querySelectorAll('.nav-card').forEach(card => {
+            card.addEventListener('mouseenter', function(e) {
+                this.style.setProperty('--mouse-x', e.offsetX + 'px');
+                this.style.setProperty('--mouse-y', e.offsetY + 'px');
+            });
+        });
+    </script>
+</body>
+</html>
