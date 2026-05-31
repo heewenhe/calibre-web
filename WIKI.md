@@ -19,7 +19,8 @@ Calibre-Web 是一个基于 Flask 的 Web 应用程序，提供了一个简洁�
 │   ├── ISSUE_TEMPLATE/         # Issue 模板
 │   ├── FUNDING.yml             # 赞助配置
 ├── cps/                        # 主应用包
-│   ├── __init__.py             # 应用初始化，Flask 配置
+│   ├── __init__.py             # 应用工厂，Flask 配置
+│   ├── main.py                 # 蓝图注册，应用启动入口
 │   ├── web.py                  # 主要 Web 路由和视图
 │   ├── db.py                   # Calibre 数据库模型
 │   ├── ub.py                   # 用户数据库模型
@@ -27,13 +28,29 @@ Calibre-Web 是一个基于 Flask 的 Web 应用程序，提供了一个简洁�
 │   ├── shelf.py                # 书架功能
 │   ├── opds.py                 # OPDS 协议实现
 │   ├── search.py               # 搜索功能
+│   ├── search_metadata.py      # 元数据搜索（含 provider 自动发现）
+│   ├── editbooks.py            # 图书编辑
 │   ├── uploader.py             # 上传功能
 │   ├── converter.py            # 格式转换
 │   ├── kobo.py                 # Kobo 设备同步
+│   ├── kobo_auth.py            # Kobo 认证
 │   ├── gdrive.py               # Google Drive 集成
-│   ├── oauth.py                # OAuth 认证
+│   ├── oauth_bb.py             # OAuth 认证
+│   ├── remotelogin.py          # 远程登录（Magic Link）
+│   ├── basic.py                # 基础路由
+│   ├── about.py                # 关于页面
+│   ├── schedule.py             # 定时任务管理
+│   ├── tasks_status.py         # 任务状态查询
+│   ├── usermanagement.py       # 用户管理与权限装饰器
+│   ├── helper.py               # 通用工具函数
 │   ├── constants.py            # 常量定义
 │   ├── config_sql.py           # 数据库配置
+│   ├── render_template.py      # 模板渲染工具
+│   ├── jinjia.py               # Jinja2 过滤器
+│   ├── error_handler.py        # 错误处理
+│   ├── string_helper.py        # 字符串工具
+│   ├── cli.py                  # 命令行接口
+│   ├── server.py               # Web 服务器管理
 │   ├── cw_login/               # 登录认证模块
 │   │   ├── login_manager.py    # Flask-Login 管理器
 │   │   ├── config.py
@@ -42,12 +59,12 @@ Calibre-Web 是一个基于 Flask 的 Web 应用程序，提供了一个简洁�
 │   │   └── utils.py
 │   ├── services/               # 后台服务
 │   │   ├── Metadata.py         # 元数据服务基类
-│   │   ├── background_scheduler.py  # 定时任务
-│   │   ├── worker.py           # 后台工作线程
+│   │   ├── background_scheduler.py  # 定时任务调度器
+│   │   ├── worker.py           # 后台工作线程与 CalibreTask 基类
 │   │   ├── gmail.py            # Gmail 发送服务
 │   │   ├── goodreads_support.py # Goodreads 支持
 │   │   └── simpleldap.py       # LDAP 认证
-│   ├── metadata_provider/      # 元数据来源提供者
+│   ├── metadata_provider/      # 元数据来源提供者（自动发现加载）
 │   │   ├── google.py           # Google Books
 │   │   ├── amazon.py           # Amazon
 │   │   ├── douban.py           # 豆瓣
@@ -145,11 +162,22 @@ Calibre-Web 独立用户数据库，使用 SQLite：
 **核心表**:
 - `User`: 用户信息
 - `User_Sessions`: 用户会话
-- `User_Book`: 用户-图书关联（阅读状态、进度）
+- `ReadBook`: 用户-图书关联（阅读状态、进度，表名 `book_read_link`）
 - `Shelf`: 书架
-- `ShelfBook`: 书架-图书关联
-- `BookMetadatasBackup`: 元数据备份
-- `Read2`: 阅读历史
+- `BookShelf`: 书架-图书关联（表名 `book_shelf_link`）
+- `Bookmark`: 书签
+- `Downloads`: 下载记录
+- `ArchivedBook`: 归档图书
+- `ShelfArchive`: 归档书架
+- `Registration`: 注册信息
+- `RemoteAuthToken`: 远程认证令牌
+- `Thumbnail`: 缩略图
+
+**Kobo 相关表**:
+- `KoboReadingState`: Kobo 阅读状态
+- `KoboBookmark`: Kobo 书签
+- `KoboStatistics`: Kobo 统计
+- `KoboSyncedBooks`: Kobo 同步图书
 
 **用户角色** (`constants.py`):
 ```python
@@ -174,8 +202,8 @@ class Metadata:
     __name__ = "Generic"
     __id__ = "generic"
     
-    def search(self, query, generic_cover, locale) -> List[MetaRecord]
-    def get_title_tokens(self, title) -> Generator[str, None, None]
+    def search(self, query, generic_cover, locale) -> Optional[List[MetaRecord]]
+    def get_title_tokens(self, title, strip_joiners=True) -> Generator[str, None, None]
 ```
 
 **支持的元数据来源**:
@@ -250,53 +278,66 @@ mp3, mp4, ogg, opus, wav, flac, m4a, m4b
 
 ### LDAP 认证 (`ldap`)
 ```
-python-ldap>=3.0.0
-Flask-SimpleLDAP>=1.4.0
+python-ldap>=3.0.0,<3.5.0
+Flask-SimpleLDAP>=1.4.0,<2.2.0
 ```
 
 ### OAuth 认证 (`oauth`)
 ```
-Flask-Dance>=2.0.0
-SQLAlchemy-Utils>=0.33.5
+Flask-Dance>=2.0.0,<7.2.0
+SQLAlchemy-Utils>=0.33.5,<0.43.0
 ```
 
 ### Google Drive (`gdrive`)
 ```
-google-api-python-client>=2.73.00
-gevent>20.6.0
-PyDrive2>=1.15.0
-oauth2client>=4.0.0
+google-api-python-client>=2.73.00,<2.200.0
+gevent>20.6.0,<25.9.2
+greenlet>=0.4.17,<3.4.0
+httplib2>=0.9.2,<0.32.0
+PyDrive2>=1.15.0,<1.22.0
+oauth2client>=4.0.0,<4.1.4
+uritemplate>=3.0.0,<4.3.0
+pyasn1-modules>=0.0.8,<0.7.0
+pyasn1>=0.1.9,<0.7.0
+PyYAML>=3.12,<6.1
+rsa>=3.4.2,<4.10.0
 ```
 
 ### Goodreads (`goodreads`)
 ```
-goodreads>=0.3.2
-python-Levenshtein>=0.12.0
+goodreads>=0.3.2,<0.4.0
+python-Levenshtein>=0.12.0,<0.28.0
 ```
 
 ### Gmail 发送 (`gmail`)
 ```
-google-auth-oauthlib>=1.0.0
-google-api-python-client>=2.73.00
+google-auth-oauthlib>=1.0.0,<1.3.0
+google-api-python-client>=2.73.00,<2.200.0
 ```
 
 ### 元数据搜索 (`metadata`)
 ```
-rarfile>=3.2
-scholarly>=1.2.0
-beautifulsoup4>=4.0.1
-py7zr>=0.15.0
+rarfile>=3.2,<5.0
+scholarly>=1.2.0,<1.8
+markdown2>=2.0.0,<2.6.0
+html2text>=2020.1.16,<2025.4.16
+python-dateutil>=2.1,<2.10.0
+beautifulsoup4>=4.0.1,<4.15.0
+faust-cchardet>=2.1.18,<2.1.20
+py7zr>=0.15.0,<0.21.0
+mutagen>=1.40.0,<1.50.0
+pycountry>=20.0.0,<25.0.0
 ```
 
 ### 漫画支持 (`comics`)
 ```
-natsort>=2.2.0
-comicapi>=2.2.0
+natsort>=2.2.0,<8.5.0
+comicapi>=2.2.0,<3.3.0
 ```
 
 ### Kobo 支持 (`kobo`)
 ```
-jsonschema>=3.2.0
+jsonschema>=3.2.0,<4.30.0
 ```
 
 ---
@@ -350,11 +391,12 @@ jsonschema>=3.2.0
 |------|------|--------|
 | `CALIBRE_PORT` | 服务端口 | `8083` |
 | `CALIBRE_DBPATH` | Calibre 数据库路径 | 当前目录 |
-| `CACHE_DIRECTORY` | 缓存目录 | `cps/cache` |
+| `CALIBRE_RECONNECT` | 数据库重连超时 | - |
+| `CALIBRE_LOCALHOST` | 限制仅本地访问 | - |
+| `CALIBRE_UNIX_SOCKET` | Unix Socket 路径 | - |
 | `FLASK_DEBUG` | 调试模式 | - |
 | `SECRET_KEY` | Flask 密钥 | 自动生成 |
 | `COOKIE_PREFIX` | Cookie 前缀 | - |
-| `APP_MODE` | 应用模式 | `production` |
 
 ### 配置文件位置
 - 通过 pip 安装: `~/.calibre-web/`
@@ -405,7 +447,7 @@ Content-Security-Policy: (动态配置)
 5. **Magic Link**: 电子书阅读器专用链接
 
 ### 速率限制
-使用 Flask-Limiter，默认禁用，可配置 Redis/Memcached 存储。
+使用 Flask-Limiter，默认启用但无默认速率限制。登录和注册接口配置了明确的限制（40次/天、3次/分钟）。可配置 Redis/Memcached 作为存储后端（通过 `RATELIMIT_STORAGE_URI` 配置）。
 
 ---
 
@@ -469,8 +511,8 @@ python cps.py
 ### 添加新的元数据源
 1. 继承 `Metadata` 基类
 2. 实现 `search()` 方法
-3. 返回 `MetaRecord` 列表
-4. 在 `services/__init__.py` 中注册
+3. 返回 `Optional[List[MetaRecord]]` 列表
+4. 将实现文件放入 `metadata_provider/` 目录，系统会通过 `search_metadata.py` 自动发现并加载
 
 ### 添加新的翻译
 1. 在 `cps/translations/` 创建语言目录

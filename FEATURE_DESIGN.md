@@ -88,8 +88,8 @@
 │  ┌──────────────────────────────────────────────────────────────────────┐ │
 │  │  ub.py (用户数据库，新增表)                                            │ │
 │  │  - TagLibrary (新增)                                                  │ │
-│  │  - TagMapping (新增)                                                  │ │
 │  │  - FileOrganizationRules (新增)                                       │ │
+│  │  - ScanHistory (新增)                                                 │ │
 │  └──────────────────────────────────────────────────────────────────────┘ │
 └───────────────────────────────────────────────────────────────────────────┘
 ```
@@ -115,20 +115,27 @@ class TagLibrary(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 ```
 
-#### 4.1.2 FileOrganizationRules 表
+#### 4.1.2 FileOrganizationRules 表与标签关联
 ```python
 class FileOrganizationRules(Base):
     __tablename__ = 'file_org_rules'
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False)  # 规则名称
-    tag_ids = Column(JSON, default=[])  # 关联的标签ID列表 [1, 2, 3]
     tag_combination = Column(String, default="any")  # "any" 或 "all"
     target_directory = Column(String, nullable=False)  # 目标目录
     is_active = Column(Boolean, default=True)
     priority = Column(Integer, default=0)  # 优先级，数值高的优先
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class FileOrgRuleTags(Base):
+    __tablename__ = 'file_org_rule_tags'
+    id = Column(Integer, primary_key=True)
+    rule_id = Column(Integer, ForeignKey('file_org_rules.id'), nullable=False)
+    tag_id = Column(Integer, ForeignKey('tags.id'), nullable=False)  # 关联 Calibre Tags 表
 ```
+
+> **设计说明**：使用关联表 `FileOrgRuleTags` 替代原先的 `tag_ids = Column(JSON)` 方案。关联表通过外键约束保证数据完整性，避免标签被删除后出现悬空引用，同时支持高效的反向查询（查询某个标签被哪些规则使用）。
 
 #### 4.1.3 ScanHistory 表
 ```python
@@ -227,12 +234,20 @@ from cps.services.worker import CalibreTask
 
 class TaskMetadataScan(CalibreTask):
     def __init__(self, provider_id, book_ids=None, user_id=None):
-        super().__init__(task_message=_("Metadata Scan: {}").format(provider_id))
+        super().__init__(message=_("Metadata Scan: {}").format(provider_id))
         self.provider_id = provider_id
         self.book_ids = book_ids  # 如果为None则扫描全部
         self.user_id = user_id
         self.scan_history_id = None
-        
+
+    @property
+    def name(self):
+        return _("Metadata Scan")
+
+    @property
+    def is_cancellable(self):
+        return True
+
     def run(self, worker_thread):
         """执行扫描任务"""
         pass
@@ -247,11 +262,19 @@ from cps.services.worker import CalibreTask
 
 class TaskFileOrganize(CalibreTask):
     def __init__(self, rule_ids=None, book_ids=None, user_id=None):
-        super().__init__(task_message=_("File Organization"))
+        super().__init__(message=_("File Organization"))
         self.rule_ids = rule_ids  # 要应用的规则
         self.book_ids = book_ids  # 要处理的图书
         self.user_id = user_id
-        
+
+    @property
+    def name(self):
+        return _("File Organization")
+
+    @property
+    def is_cancellable(self):
+        return True
+
     def run(self, worker_thread):
         """执行文件组织任务"""
         pass
@@ -262,25 +285,27 @@ class TaskFileOrganize(CalibreTask):
 """
 元数据与组织功能 - Web 控制器
 """
-from flask import Blueprint, render_template, request, jsonify
-from .cw_login import current_user, user_login_required
+from flask import Blueprint, render_template, request, jsonify, make_response
+from .cw_login import current_user
+from .usermanagement import user_login_required
+from .admin import admin_required
 
 metadata_scheduler = Blueprint('metadata_scheduler', __name__)
 
 @metadata_scheduler.route('/admin/metadata_scan', methods=['GET', 'POST'])
-@user_login_required
+@admin_required
 def metadata_scan_page():
     """元数据扫描页面"""
     pass
 
 @metadata_scheduler.route('/api/metadata_scan/start', methods=['POST'])
-@user_login_required
+@admin_required
 def start_metadata_scan():
     """启动元数据扫描任务"""
     pass
 
 @metadata_scheduler.route('/api/metadata_scan/history', methods=['GET'])
-@user_login_required
+@admin_required
 def get_scan_history():
     """获取扫描历史"""
     pass
@@ -291,19 +316,21 @@ def get_scan_history():
 """
 标签库管理 - Web 控制器
 """
-from flask import Blueprint, render_template, request, jsonify
-from .cw_login import current_user, user_login_required
+from flask import Blueprint, render_template, request, jsonify, make_response
+from .cw_login import current_user
+from .usermanagement import user_login_required
+from .admin import admin_required
 
 tag_library = Blueprint('tag_library', __name__)
 
 @tag_library.route('/admin/tag_library', methods=['GET'])
-@user_login_required
+@admin_required
 def tag_library_page():
     """标签库管理页面"""
     pass
 
 @tag_library.route('/api/tag_library/tags', methods=['GET', 'POST'])
-@user_login_required
+@admin_required
 def tag_library_tags():
     """标签CRUD API"""
     pass
@@ -314,25 +341,27 @@ def tag_library_tags():
 """
 文件组织 - Web 控制器
 """
-from flask import Blueprint, render_template, request, jsonify
-from .cw_login import current_user, user_login_required
+from flask import Blueprint, render_template, request, jsonify, make_response
+from .cw_login import current_user
+from .usermanagement import user_login_required
+from .admin import admin_required
 
 file_organizer = Blueprint('file_organizer', __name__)
 
 @file_organizer.route('/admin/file_organizer', methods=['GET'])
-@user_login_required
+@admin_required
 def file_organizer_page():
     """文件组织管理页面"""
     pass
 
 @file_organizer.route('/api/file_organizer/rules', methods=['GET', 'POST', 'PUT', 'DELETE'])
-@user_login_required
+@admin_required
 def file_org_rules():
     """规则CRUD API"""
     pass
 
 @file_organizer.route('/api/file_organizer/apply', methods=['POST'])
-@user_login_required
+@admin_required
 def apply_rules():
     """应用规则"""
     pass
@@ -362,18 +391,58 @@ def apply_rules():
 
 #### 4.4.1 与现有元数据系统集成
 - 复用现有的 metadata_provider 模块
-- 复用 search_metadata.py 中的 provider 发现机制
-- 调用 provider.search() 方法获取元数据
+- 复用 search_metadata.py 中的 provider 发现机制（通过动态扫描 metadata_provider/ 目录自动加载）
+- 调用 provider.search() 方法获取元数据，注意返回类型为 `Optional[List[MetaRecord]]`，需处理 None 返回值
 - 提取 tags 字段并应用到 Calibre 数据库
 
-#### 4.4.2 与现有任务系统集成
+#### 4.4.2 元数据扫描核心逻辑
+
+**查询生成策略**：
+- 优先使用 ISBN（通过 `Identifiers` 表中 `isbn` 类型的标识符）
+- 若无 ISBN，使用 `书名 + 作者` 组合查询
+- 使用 `Metadata.get_title_tokens()` 对书名进行分词以提高匹配率
+
+**结果匹配策略**：
+- 若搜索返回多个 `MetaRecord`，按以下优先级自动选择最佳匹配：
+  1. ISBN 完全匹配
+  2. 标题完全匹配 + 作者匹配
+  3. 标题相似度最高（Levenshtein 距离）
+- 若无高置信度匹配（相似度 < 阈值），跳过该书并记录到 ScanHistory.error_log
+- 提供手动审核模式：低置信度匹配暂存待确认，不自动应用
+
+**标签提取与写入策略**：
+- 从 `MetaRecord.tags`（`Optional[List[str]]`）提取标签字符串列表
+- 对每个标签字符串，在 Calibre `Tags` 表中查找同名标签
+  - 若已存在，直接关联到 `books_tags_link`
+  - 若不存在，创建新 `Tags` 记录后关联
+- 去重逻辑：同一图书不重复关联已有标签
+
+#### 4.4.3 TagLibrary 与 Calibre Tags 同步策略
+
+TagLibrary 表作为 Calibre Tags 表的扩展元数据层，两者通过标签名称关联：
+
+- **读取同步**：TagLibraryService 初始化时，从 Calibre `Tags` 表同步所有标签名称到 TagLibrary（仅新增，不删除）
+- **写入同步**：通过 TagLibrary 添加的新标签，同步写入 Calibre `Tags` 表
+- **合并同步**：标签合并操作需同时更新 Calibre 数据库中的 `books_tags_link` 关联
+- **删除同步**：从 TagLibrary 删除标签时，可选择是否同时从 Calibre Tags 表删除
+- **一致性检查**：提供"同步校验"功能，检测两表之间的不一致并修复
+
+#### 4.4.4 与现有任务系统集成
 - 在 services/worker.py 中增加对新任务类型的支持
 - 在任务列表页面展示元数据扫描和文件组织任务
+- 新任务需实现 CalibreTask 的全部抽象方法：`run()`, `name`, `is_cancellable`
 
-#### 4.4.3 与 Calibre 数据库集成
+#### 4.4.5 与 Calibre 数据库集成
 - 使用 calibre_db.session 进行数据库操作
 - 使用现有的 Tags 表结构
 - 复用 books_tags_link 关联表
+
+#### 4.4.6 Google Drive 兼容性
+- 文件组织功能需同时支持本地文件系统和 Google Drive 存储模式
+- 复用 `helper.update_dir_structure()` 统一入口，该函数已根据配置自动分发到：
+  - `update_dir_structure_file()`：本地文件系统模式
+  - `update_dir_structure_gdrive()`：Google Drive 模式
+- FileOrganizerService 的 `move_book_file()` 方法应调用 `helper.update_dir_structure()` 而非直接操作文件系统
 
 ---
 
@@ -399,7 +468,7 @@ def apply_rules():
 3. 实现前端界面
 
 ### 阶段五：集成与测试
-1. 在 __init__.py 中注册新蓝图
+1. 在 main.py 中注册新蓝图（注意：蓝图注册在 main.py 而非 __init__.py）
 2. 完善权限控制
 3. 测试与文档
 
@@ -424,8 +493,11 @@ def apply_rules():
 ## 7. 权限控制
 
 利用现有的权限系统：
-- 所有功能需要 `ROLE_ADMIN` 或 `ROLE_EDIT` 权限
-- 在各个视图函数上添加 `@user_login_required` 和角色检查
+- 所有管理功能使用 `@admin_required` 装饰器（定义在 `admin.py` 中，检查 `current_user.role_admin()`）
+- 管理路由同时使用 `@user_login_required`（来自 `usermanagement.py`）确保用户已登录
+- 遵循现有 admin 模块的双重装饰器模式：`@user_login_required` + `@admin_required`
+- 导入方式：`from .admin import admin_required`，`from .usermanagement import user_login_required`
+- API 响应统一使用 `make_response(jsonify(...))` 模式，与现有 search_metadata.py 等模块保持一致
 
 ---
 
@@ -457,8 +529,8 @@ cps/
 ### 修改文件
 ```
 cps/
-├── __init__.py         # 注册新蓝图
-├── ub.py               # 添加新表
+├── main.py             # 注册新蓝图（蓝图注册入口，非 __init__.py）
+├── ub.py               # 添加新表（TagLibrary, FileOrgRuleTags, FileOrganizationRules, ScanHistory）
 ├── web.py              # 添加导航链接
 ├── admin.py            # 添加菜单入口
 └── templates/
