@@ -171,29 +171,39 @@ class TagLibraryService:
     def get_all_tags(self):
         """获取所有标签库标签"""
         pass
-        
+
     def get_calibre_tags(self):
         """从Calibre数据库获取所有现有标签"""
         pass
-        
+
     def add_tag(self, name, category="", description=""):
-        """添加标签到标签库"""
+        """添加标签到标签库，同步写入 Calibre Tags 表并回填 calibre_tag_id"""
         pass
-        
+
     def update_tag(self, tag_id, name, category, description):
-        """更新标签"""
+        """更新标签，同步更新 Calibre Tags 表和 FileOrgRuleTags.tag_name"""
         pass
-        
+
     def delete_tag(self, tag_id):
-        """删除标签"""
+        """删除标签，同步从 Calibre Tags 表删除并清理 books_tags_link 关联"""
         pass
-        
+
     def merge_tags(self, source_tag_ids, target_tag_name):
-        """合并标签"""
+        """合并标签，更新 Calibre 数据库中的 books_tags_link 关联"""
         pass
-        
+
     def categorize_tags(self, tag_ids, category):
         """批量分类标签"""
+        pass
+
+    def sync_consistency_check(self):
+        """一致性检查：检测 TagLibrary 与 Calibre Tags 表之间的不一致
+        返回不一致记录列表，供管理员修复"""
+        pass
+
+    def sync_from_calibre(self):
+        """从 Calibre Tags 表同步所有标签到 TagLibrary
+        以 Tags.id 为主键，标签名称为 Tags.name"""
         pass
 ```
 
@@ -202,37 +212,110 @@ class TagLibraryService:
 """
 文件组织服务
 """
+import os
+import re
+import fcntl
+
+
 class FileOrganizerService:
+    # 允许的目标目录基路径，必须在 Calibre 目录下
+    ALLOWED_BASE_DIR = None  # 初始化时从 config.config_calibre_dir 设置
+    # 标签名称允许字符：字母、数字、中文、常见标点
+    TAG_NAME_PATTERN = re.compile(r'^[\w\s\-\u4e00-\u9fff]+$')
+    MAX_TAG_NAME_LENGTH = 100
+
+    def __init__(self, config):
+        self.ALLOWED_BASE_DIR = os.path.abspath(config.config_calibre_dir)
+
+    def _validate_target_directory(self, target_directory):
+        """校验目标目录必须在允许的基目录下，防止路径遍历攻击"""
+        abs_target = os.path.abspath(target_directory)
+        abs_base = os.path.abspath(self.ALLOWED_BASE_DIR)
+        # 确保目标路径以基目录开头，防止 .. 绕过
+        if not os.path.commonpath([abs_target, abs_base]) == abs_base:
+            raise ValueError("Target directory must be within the Calibre library directory")
+        # 禁止包含 .. 的路径组件
+        if '..' in os.path.normpath(target_directory).split(os.sep):
+            raise ValueError("Path cannot contain parent directory references")
+        return abs_target
+
+    def _validate_tag_name(self, tag_name):
+        """校验标签名称，防止 XSS 和注入攻击"""
+        if not tag_name or len(tag_name) > self.MAX_TAG_NAME_LENGTH:
+            raise ValueError(f"Tag name must be 1-{self.MAX_TAG_NAME_LENGTH} characters")
+        if not self.TAG_NAME_PATTERN.match(tag_name):
+            raise ValueError("Tag name contains invalid characters")
+        return tag_name.strip()
+
     def get_rules(self):
         """获取所有文件组织规则"""
         pass
-        
+
     def add_rule(self, name, tag_names, tag_combination, target_directory, priority):
         """添加规则（tag_names 为标签名称列表，对应 Calibre Tags.name）"""
+        # 校验目标目录
+        self._validate_target_directory(target_directory)
+        # 校验所有标签名称
+        for tag in tag_names:
+            self._validate_tag_name(tag)
         pass
-        
+
     def update_rule(self, rule_id, **kwargs):
         """更新规则"""
+        if 'target_directory' in kwargs:
+            self._validate_target_directory(kwargs['target_directory'])
+        if 'tag_names' in kwargs:
+            for tag in kwargs['tag_names']:
+                self._validate_tag_name(tag)
         pass
-        
+
     def delete_rule(self, rule_id):
         """删除规则"""
         pass
-        
+
     def apply_rules_to_book(self, book_id):
         """对单个图书应用规则"""
         pass
-        
+
     def apply_rules_to_all(self):
         """对所有图书应用规则（返回可处理的图书列表）"""
         pass
-        
+
     def create_symlink(self, book, target_directory):
-        """在目标目录下创建软链接（不移动 Calibre 原始文件）"""
-        pass
-        
+        """在目标目录下创建软链接（不移动 Calibre 原始文件）
+        使用文件锁防止并发竞争条件（TOCTOU）"""
+        # 校验目标目录
+        safe_target = self._validate_target_directory(target_directory)
+        calibre_dir = os.path.join(self.ALLOWED_BASE_DIR, book.path)
+        # 确保 calibre_dir 也在基目录下
+        self._validate_target_directory(calibre_dir)
+
+        link_name = get_valid_filename(book.title, chars=96) + " (" + str(book.id) + ")"
+        link_path = os.path.join(safe_target, link_name)
+        # 确保 link_path 也在基目录下
+        self._validate_target_directory(link_path)
+
+        # 使用文件锁保护检查和创建操作，防止 TOCTOU 竞争条件
+        lock_file = os.path.join(safe_target, '.file_org.lock')
+        with open(lock_file, 'w') as lf:
+            fcntl.flock(lf, fcntl.LOCK_EX)
+            try:
+                # 原子操作：先创建临时链接，再重命名
+                temp_link = link_path + '.tmp'
+                if os.path.islink(temp_link):
+                    os.unlink(temp_link)
+                os.symlink(calibre_dir, temp_link, target_is_directory=True)
+                # 原子重命名替换旧链接
+                os.replace(temp_link, link_path)
+            finally:
+                fcntl.flock(lf, fcntl.LOCK_UN)
+                # 清理临时文件（如果重命名失败）
+                if os.path.islink(temp_link):
+                    os.unlink(temp_link)
+
     def clean_stale_links(self, target_directory):
         """清理目标目录中不再匹配规则的死链接"""
+        safe_target = self._validate_target_directory(target_directory)
         pass
 ```
 
@@ -241,8 +324,72 @@ class FileOrganizerService:
 """
 元数据扫描任务
 """
+import ipaddress
+import socket
+from urllib.parse import urlparse
 from flask_babel import lazy_gettext as N_
 from cps.services.worker import CalibreTask
+
+
+class SSRFProtection:
+    """SSRF 防护工具类：限制元数据提供者只能访问允许的域名和 IP"""
+    # 允许的元数据提供者域名白名单
+    ALLOWED_DOMAINS = {
+        'book.douban.com',
+        'www.googleapis.com',
+        'www.amazon.com',
+        'www.amazon.cn',
+        'comicvine.gamespot.com',
+        'scholar.google.com',
+        'lubimyczytac.pl',
+    }
+    # 禁止访问的私有 IP 段
+    PRIVATE_NETWORKS = [
+        ipaddress.ip_network('10.0.0.0/8'),
+        ipaddress.ip_network('172.16.0.0/12'),
+        ipaddress.ip_network('192.168.0.0/16'),
+        ipaddress.ip_network('127.0.0.0/8'),
+        ipaddress.ip_network('169.254.0.0/16'),
+        ipaddress.ip_network('0.0.0.0/8'),
+        ipaddress.ip_network('::1/128'),  # IPv6 loopback
+        ipaddress.ip_network('fc00::/7'),  # IPv6 private
+        ipaddress.ip_network('fe80::/10'),  # IPv6 link-local
+    ]
+    # HTTP 请求超时（秒）
+    REQUEST_TIMEOUT = 10
+
+    @classmethod
+    def validate_url(cls, url):
+        """校验 URL 是否允许访问，防止 SSRF 攻击"""
+        if not url:
+            raise ValueError("URL cannot be empty")
+        parsed = urlparse(url)
+        hostname = parsed.hostname
+        if not hostname:
+            raise ValueError("Invalid URL: no hostname")
+
+        # 检查域名白名单
+        if hostname not in cls.ALLOWED_DOMAINS:
+            # 也检查子域名
+            if not any(hostname.endswith('.' + d) for d in cls.ALLOWED_DOMAINS):
+                raise ValueError(f"Domain {hostname} is not in the allowed list")
+
+        # 解析 IP 并检查是否为私有地址
+        try:
+            ip = ipaddress.ip_address(socket.getaddrinfo(hostname, None)[0][4][0])
+            for network in cls.PRIVATE_NETWORKS:
+                if ip in network:
+                    raise ValueError(f"Access to private IP address {ip} is not allowed")
+        except socket.gaierror:
+            raise ValueError(f"Cannot resolve hostname: {hostname}")
+
+        return True
+
+    @classmethod
+    def get_safe_request_kwargs(cls):
+        """获取安全的请求参数（超时等）"""
+        return {'timeout': cls.REQUEST_TIMEOUT}
+
 
 class TaskMetadataScan(CalibreTask):
     def __init__(self, provider_id, book_ids=None, user_id=None):
@@ -262,6 +409,8 @@ class TaskMetadataScan(CalibreTask):
 
     def run(self, worker_thread):
         """执行扫描任务。注意：WorkerThread 在独立线程中运行，访问数据库前必须进入 app_context。"""
+        # 在调用 provider 前，校验其请求 URL
+        # provider 应在初始化或请求时使用 SSRFProtection.validate_url()
         pass
 ```
 
@@ -474,6 +623,13 @@ TagLibrary 表作为 Calibre Tags 表的扩展元数据层，两者通过 `Calib
 - **一致性检查**：提供"同步校验"功能，检测 TagLibrary 与 Tags 表之间的不一致（如 TagLibrary 中有 calibre_tag_id 在 Tags 表中已不存在），并提供修复选项
 - **同名标签处理**：Calibre Tags 表的 `name` 无唯一约束，同一名称可能存在多条。同步时以 `Tags.id` 为准，在应用层处理名称冲突
 
+**跨数据库事务保障**：
+由于 Calibre 数据库（db.py）和用户数据库（ub.py）使用独立的 SQLite 引擎，无法使用数据库级事务保证跨库一致性。采用以下策略：
+1. **操作顺序**：先操作 Calibre 数据库（Tags 表），成功后再操作用户数据库（TagLibrary 表）
+2. **失败回滚**：若用户数据库操作失败，需回滚 Calibre 数据库的更改（手动删除已插入的记录）
+3. **定期校验**：通过 `sync_consistency_check()` 定期检测并修复不一致
+4. **应用层封装**：所有跨库操作必须通过 `TagLibraryService` 的统一入口，禁止直接绕过服务层操作单个数据库
+
 #### 4.4.4 与现有任务系统集成
 - 在 services/worker.py 中增加对新任务类型的支持
 - 在任务列表页面展示元数据扫描和文件组织任务
@@ -595,6 +751,24 @@ def apply_rules_via_symlink(self, rule):
 - 遵循现有 admin 模块的双重装饰器模式：`@user_login_required` + `@admin_required`
 - 导入方式：`from .admin import admin_required`，`from .usermanagement import user_login_required`
 - API 响应统一使用 `make_response(jsonify(...))` 模式，与现有 search_metadata.py 等模块保持一致
+
+**CSRF 防护**：
+- 所有状态变更 API（POST/PUT/DELETE）必须启用 CSRF 保护
+- 使用 Flask-WTF 提供的 CSRF 令牌验证
+- 前端表单和 AJAX 请求必须包含正确的 `X-CSRFToken` 请求头
+- 例外：仅 GET 请求可豁免 CSRF 验证
+
+**权限检查清单（代码审查用）**：
+| 端点 | 方法 | 所需装饰器 | CSRF |
+|------|------|-----------|------|
+| `/admin/metadata_scan` | GET/POST | `@user_login_required` + `@admin_required` | ✅ |
+| `/api/metadata_scan/start` | POST | `@user_login_required` + `@admin_required` | ✅ |
+| `/api/metadata_scan/history` | GET | `@user_login_required` + `@admin_required` | ❌ |
+| `/admin/tag_library` | GET | `@user_login_required` + `@admin_required` | ✅ |
+| `/api/tag_library/tags` | GET/POST | `@user_login_required` + `@admin_required` | ✅ |
+| `/admin/file_organizer` | GET | `@user_login_required` + `@admin_required` | ✅ |
+| `/api/file_organizer/rules` | GET/POST/PUT/DELETE | `@user_login_required` + `@admin_required` | ✅ |
+| `/api/file_organizer/apply` | POST | `@user_login_required` + `@admin_required` | ✅ |
 
 ---
 
