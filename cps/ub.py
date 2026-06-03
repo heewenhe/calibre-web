@@ -42,7 +42,8 @@ except ImportError as e:
         oauth_support = False
 from sqlalchemy import create_engine, exc, exists, event, text
 from sqlalchemy import Column, ForeignKey
-from sqlalchemy import String, Integer, SmallInteger, Boolean, DateTime, Float, JSON
+from sqlalchemy import String, Integer, SmallInteger, Boolean, DateTime, Float, JSON, Text
+from sqlalchemy import CheckConstraint, UniqueConstraint
 from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.sql.expression import func
 try:
@@ -566,12 +567,120 @@ class Thumbnail(Base):
     expiration = Column(DateTime, nullable=True)
 
 
+# ──────────────────────────────────────────────────────────────────────
+# New tables for Tag Library, File Organization, and Metadata Scan features
+# ──────────────────────────────────────────────────────────────────────
+
+
+class TagLibrary(Base):
+    """Tag library metadata extension. Mirrors Calibre Tags table with extra metadata.
+
+    calibre_tag_id links to db.Tags.id via application-layer association (not FK),
+    because Calibre DB and user DB use separate SQLite engines.
+    """
+    __tablename__ = 'tag_library'
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String(200), unique=True, nullable=False)
+    calibre_tag_id = Column(Integer, unique=True, nullable=True)
+    category = Column(String(200), default="", index=True)
+    description = Column(String(500), default="")
+    usage_count = Column(Integer, default=0)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
+                        onupdate=lambda: datetime.now(timezone.utc))
+
+    def __repr__(self):
+        return '<TagLibrary %r>' % self.name
+
+
+class FileOrganizationRules(Base):
+    """File organization rules mapping tags to target directories."""
+    __tablename__ = 'file_org_rules'
+    __table_args__ = (
+        CheckConstraint("tag_combination IN ('any', 'all')", name='ck_tag_combination'),
+        CheckConstraint("link_type IN ('symlink', 'hardlink')", name='ck_link_type'),
+    )
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String(200), unique=True, nullable=False)
+    tag_combination = Column(String(10), default="any")
+    target_directory = Column(String(500), nullable=False)
+    link_type = Column(String(10), default="symlink")
+    is_active = Column(Boolean, default=True)
+    priority = Column(Integer, default=0)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
+                        onupdate=lambda: datetime.now(timezone.utc))
+
+    def __repr__(self):
+        return '<FileOrgRule %r>' % self.name
+
+
+class FileOrgRuleTags(Base):
+    """M:N link between FileOrganizationRules and tag names.
+
+    Uses tag_name (String) instead of FK because Calibre Tags is in a separate DB.
+    """
+    __tablename__ = 'file_org_rule_tags'
+    __table_args__ = (
+        UniqueConstraint('rule_id', 'tag_name', name='uq_rule_tag'),
+    )
+
+    id = Column(Integer, primary_key=True)
+    rule_id = Column(Integer, ForeignKey('file_org_rules.id'), nullable=False)
+    tag_name = Column(String(200), nullable=False)
+
+    def __repr__(self):
+        return '<FileOrgRuleTag %d:%r>' % (self.rule_id, self.tag_name)
+
+
+class ScanHistory(Base):
+    """Metadata scan history records."""
+    __tablename__ = 'scan_history'
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('pending', 'running', 'success', 'failed', 'cancelled')",
+            name='ck_scan_status'
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    provider = Column(String(100), nullable=False)
+    total_books = Column(Integer, default=0)
+    processed_books = Column(Integer, default=0)
+    tags_added = Column(Integer, default=0)
+    tags_skipped = Column(Integer, default=0)
+    status = Column(String(20), default="pending")
+    started_at = Column(DateTime)
+    finished_at = Column(DateTime)
+    error_log = Column(Text, default="")
+    user_id = Column(Integer, ForeignKey('user.id'))
+
+    def __repr__(self):
+        return '<ScanHistory %d:%r>' % (self.id, self.provider)
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Migration & init helpers
+# ──────────────────────────────────────────────────────────────────────
+
+
 # Add missing tables during migration of database
 def add_missing_tables(engine, _session):
     if not engine.dialect.has_table(engine.connect(), "archived_book"):
         ArchivedBook.__table__.create(bind=engine)
     if not engine.dialect.has_table(engine.connect(), "thumbnail"):
         Thumbnail.__table__.create(bind=engine)
+    if not engine.dialect.has_table(engine.connect(), "tag_library"):
+        TagLibrary.__table__.create(bind=engine)
+    if not engine.dialect.has_table(engine.connect(), "file_org_rules"):
+        FileOrganizationRules.__table__.create(bind=engine)
+    if not engine.dialect.has_table(engine.connect(), "file_org_rule_tags"):
+        FileOrgRuleTags.__table__.create(bind=engine)
+    if not engine.dialect.has_table(engine.connect(), "scan_history"):
+        ScanHistory.__table__.create(bind=engine)
 
 
 # migrate all settings missing in registration table

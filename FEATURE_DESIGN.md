@@ -108,10 +108,11 @@
 class TagLibrary(Base):
     __tablename__ = 'tag_library'
     id = Column(Integer, primary_key=True)
-    name = Column(String, unique=True, nullable=False)  # 标签名称
-    calibre_tag_id = Column(Integer, unique=True)  # 对应 Calibre Tags.id（非外键，跨数据库）
-    category = Column(String, default="")  # 分类名称
-    description = Column(String, default="")  # 描述
+    name = Column(String(200), unique=True, nullable=False)  # 标签名称
+    calibre_tag_id = Column(Integer, unique=True, nullable=True)  # 对应 Calibre Tags.id（非外键，跨数据库），允许NULL表示未同步
+    category = Column(String(200), default="", index=True)  # 分类名称，添加索引支持按分类筛选
+    description = Column(String(500), default="")  # 描述，限制最大长度500
+    usage_count = Column(Integer, default=0)  # 关联图书数量统计
     is_active = Column(Boolean, default=True)  # 是否启用
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -121,12 +122,18 @@ class TagLibrary(Base):
 
 #### 4.1.2 FileOrganizationRules 表与标签关联
 ```python
+from sqlalchemy import CheckConstraint, UniqueConstraint
+
 class FileOrganizationRules(Base):
     __tablename__ = 'file_org_rules'
+    __table_args__ = (
+        CheckConstraint("tag_combination IN ('any', 'all')", name='ck_tag_combination'),
+    )
     id = Column(Integer, primary_key=True)
-    name = Column(String, nullable=False)  # 规则名称
-    tag_combination = Column(String, default="any")  # "any" 或 "all"
-    target_directory = Column(String, nullable=False)  # 目标目录
+    name = Column(String(200), unique=True, nullable=False)  # 规则名称，添加唯一约束
+    tag_combination = Column(String(10), default="any")  # "any" 或 "all"，CHECK约束保证
+    target_directory = Column(String(500), nullable=False)  # 目标目录，限制500字符
+    link_type = Column(String(10), default="symlink")  # "symlink" 或 "hardlink"，Windows兼容
     is_active = Column(Boolean, default=True)
     priority = Column(Integer, default=0)  # 优先级，数值高的优先
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -134,9 +141,12 @@ class FileOrganizationRules(Base):
 
 class FileOrgRuleTags(Base):
     __tablename__ = 'file_org_rule_tags'
+    __table_args__ = (
+        UniqueConstraint('rule_id', 'tag_name', name='uq_rule_tag'),
+    )
     id = Column(Integer, primary_key=True)
     rule_id = Column(Integer, ForeignKey('file_org_rules.id'), nullable=False)
-    tag_name = Column(String, nullable=False)  # 标签名称，关联 Calibre Tags.name（字符串，非外键）
+    tag_name = Column(String(200), nullable=False)  # 标签名称，关联 Calibre Tags.name（字符串，非外键），限制200字符
 ```
 
 > **设计说明**：使用 `tag_name`（String）而非 `tag_id`（Integer + ForeignKey），因为 Calibre `Tags` 表（db.py）与用户数据库（ub.py）分别使用两个独立的 SQLite 引擎，SQLite 不支持跨数据库外键约束。通过标签名称进行应用层关联：
@@ -146,17 +156,23 @@ class FileOrgRuleTags(Base):
 
 #### 4.1.3 ScanHistory 表
 ```python
+from sqlalchemy import Text, CheckConstraint
+
 class ScanHistory(Base):
     __tablename__ = 'scan_history'
+    __table_args__ = (
+        CheckConstraint("status IN ('pending', 'running', 'success', 'failed', 'cancelled')", name='ck_scan_status'),
+    )
     id = Column(Integer, primary_key=True)
-    provider = Column(String, nullable=False)  # 元数据提供者ID (如 "douban")
+    provider = Column(String(100), nullable=False)  # 元数据提供者ID (如 "douban")
     total_books = Column(Integer, default=0)
     processed_books = Column(Integer, default=0)
     tags_added = Column(Integer, default=0)
-    status = Column(String, default="pending")  # pending, running, success, failed
+    tags_skipped = Column(Integer, default=0)  # 因低置信度跳过的标签数
+    status = Column(String(20), default="pending")  # pending, running, success, failed, cancelled
     started_at = Column(DateTime)
     finished_at = Column(DateTime)
-    error_log = Column(String, default="")
+    error_log = Column(Text, default="")  # 使用Text类型支持更长日志
     user_id = Column(Integer, ForeignKey('user.id'))  # 发起人
 ```
 
@@ -168,6 +184,18 @@ class ScanHistory(Base):
 标签库管理服务
 """
 class TagLibraryService:
+    def __init__(self):
+        self._tag_cache = {}  # {tag_name: CalibreTags.id} 缓存，减少跨库查询
+        self._cache_ttl = 300  # 缓存有效期（秒）
+        self._cache_timestamp = 0
+
+    def _refresh_cache_if_needed(self):
+        """缓存过期时刷新 Calibre Tags 映射"""
+        import time
+        if time.time() - self._cache_timestamp > self._cache_ttl:
+            self._tag_cache = {}
+            self._cache_timestamp = time.time()
+
     def get_all_tags(self):
         """获取所有标签库标签"""
         pass
@@ -177,19 +205,23 @@ class TagLibraryService:
         pass
 
     def add_tag(self, name, category="", description=""):
-        """添加标签到标签库，同步写入 Calibre Tags 表并回填 calibre_tag_id"""
+        """添加标签到标签库，同步写入 Calibre Tags 表并回填 calibre_tag_id。
+        跨库事务策略：先写 Calibre Tags → 成功后再写 TagLibrary → 失败则回滚 Calibre Tags"""
         pass
 
     def update_tag(self, tag_id, name, category, description):
-        """更新标签，同步更新 Calibre Tags 表和 FileOrgRuleTags.tag_name"""
+        """更新标签，同步更新 Calibre Tags 表和 FileOrgRuleTags.tag_name。
+        事务策略：先更新 Calibre Tags → FileOrgRuleTags.tag_name → TagLibrary → 失败回滚"""
         pass
 
     def delete_tag(self, tag_id):
-        """删除标签，同步从 Calibre Tags 表删除并清理 books_tags_link 关联"""
+        """删除标签，同步从 Calibre Tags 表删除并清理 books_tags_link 关联。
+        事务策略：先删除 books_tags_link 关联 → 删除 Calibre Tags → 删除 TagLibrary → 失败回滚"""
         pass
 
     def merge_tags(self, source_tag_ids, target_tag_name):
-        """合并标签，更新 Calibre 数据库中的 books_tags_link 关联"""
+        """合并标签，更新 Calibre 数据库中的 books_tags_link 关联。
+        采用分批处理策略（每批500本），支持进度回调"""
         pass
 
     def categorize_tags(self, tag_ids, category):
@@ -198,12 +230,13 @@ class TagLibraryService:
 
     def sync_consistency_check(self):
         """一致性检查：检测 TagLibrary 与 Calibre Tags 表之间的不一致
-        返回不一致记录列表，供管理员修复"""
+        返回不一致记录列表：{orphaned_ids, missing_calibre_tags, name_mismatch}，供管理员修复"""
         pass
 
     def sync_from_calibre(self):
         """从 Calibre Tags 表同步所有标签到 TagLibrary
-        以 Tags.id 为主键，标签名称为 Tags.name"""
+        以 Tags.id 为主键，标签名称为 Tags.name。
+        增量同步：只添加 TagLibrary 中不存在的 tag"""
         pass
 ```
 
@@ -215,6 +248,7 @@ class TagLibraryService:
 import os
 import re
 import fcntl
+import platform
 
 
 class FileOrganizerService:
@@ -223,6 +257,7 @@ class FileOrganizerService:
     # 标签名称允许字符：字母、数字、中文、常见标点
     TAG_NAME_PATTERN = re.compile(r'^[\w\s\-\u4e00-\u9fff]+$')
     MAX_TAG_NAME_LENGTH = 100
+    MAX_LINKS_PER_DIR = 10000  # 单目录软链接数量上限
 
     def __init__(self, config):
         self.ALLOWED_BASE_DIR = os.path.abspath(config.config_calibre_dir)
@@ -247,21 +282,46 @@ class FileOrganizerService:
             raise ValueError("Tag name contains invalid characters")
         return tag_name.strip()
 
+    def _check_link_count(self, directory):
+        """检查目录链接数，超过上限时返回子目录路径"""
+        link_count = len([f for f in os.listdir(directory) if os.path.islink(os.path.join(directory, f))])
+        if link_count >= self.MAX_LINKS_PER_DIR:
+            # 创建子目录分散链接
+            sub_dir = os.path.join(directory, f"sub_{link_count // self.MAX_LINKS_PER_DIR}")
+            os.makedirs(sub_dir, exist_ok=True)
+            return sub_dir
+        return directory
+
+    def _resolve_rule_conflicts(self, book_id, rules):
+        """规则冲突检测：同一图书匹配多个规则时，按优先级排序，高优先级规则优先"""
+        matched = []
+        for rule in rules:
+            if self._book_matches_rule(book_id, rule):
+                matched.append(rule)
+        if not matched:
+            return []
+        # 按优先级降序排列
+        matched.sort(key=lambda r: r.priority, reverse=True)
+        return matched
+
     def get_rules(self):
         """获取所有文件组织规则"""
         pass
 
-    def add_rule(self, name, tag_names, tag_combination, target_directory, priority):
-        """添加规则（tag_names 为标签名称列表，对应 Calibre Tags.name）"""
+    def add_rule(self, name, tag_names, tag_combination, target_directory, priority, link_type="symlink"):
+        """添加规则（tag_names 为标签名称列表，对应 Calibre Tags.name）。
+        自动创建目标目录（如不存在）"""
         # 校验目标目录
         self._validate_target_directory(target_directory)
         # 校验所有标签名称
         for tag in tag_names:
             self._validate_tag_name(tag)
+        # 创建目标目录
+        os.makedirs(target_directory, exist_ok=True)
         pass
 
     def update_rule(self, rule_id, **kwargs):
-        """更新规则"""
+        """更新规则，支持目录重命名（移动已有链接）"""
         if 'target_directory' in kwargs:
             self._validate_target_directory(kwargs['target_directory'])
         if 'tag_names' in kwargs:
@@ -270,7 +330,7 @@ class FileOrganizerService:
         pass
 
     def delete_rule(self, rule_id):
-        """删除规则"""
+        """删除规则，同时清理该规则创建的所有软链接/硬链接"""
         pass
 
     def apply_rules_to_book(self, book_id):
@@ -278,18 +338,23 @@ class FileOrganizerService:
         pass
 
     def apply_rules_to_all(self):
-        """对所有图书应用规则（返回可处理的图书列表）"""
+        """对所有图书应用规则（分批处理，每批100本）"""
         pass
 
-    def create_symlink(self, book, target_directory):
-        """在目标目录下创建软链接（不移动 Calibre 原始文件）
+    def create_link(self, book, target_directory, link_type="symlink"):
+        """在目标目录下创建链接（软链接或硬链接）。
+        软链接：os.symlink(src, dst, target_is_directory=True)
+        硬链接：os.link(src, dst) - Windows 兼容性更好
         使用文件锁防止并发竞争条件（TOCTOU）"""
         # 校验目标目录
         safe_target = self._validate_target_directory(target_directory)
+        # 检查链接数上限
+        safe_target = self._check_link_count(safe_target)
         calibre_dir = os.path.join(self.ALLOWED_BASE_DIR, book.path)
         # 确保 calibre_dir 也在基目录下
         self._validate_target_directory(calibre_dir)
 
+        from cps.helper import get_valid_filename
         link_name = get_valid_filename(book.title, chars=96) + " (" + str(book.id) + ")"
         link_path = os.path.join(safe_target, link_name)
         # 确保 link_path 也在基目录下
@@ -299,22 +364,45 @@ class FileOrganizerService:
         lock_file = os.path.join(safe_target, '.file_org.lock')
         with open(lock_file, 'w') as lf:
             fcntl.flock(lf, fcntl.LOCK_EX)
+            temp_link = None
             try:
                 # 原子操作：先创建临时链接，再重命名
                 temp_link = link_path + '.tmp'
-                if os.path.islink(temp_link):
+                if os.path.islink(temp_link) or os.path.exists(temp_link):
                     os.unlink(temp_link)
-                os.symlink(calibre_dir, temp_link, target_is_directory=True)
+                if link_type == "hardlink" and platform.system() != "Windows":
+                    if os.path.isdir(calibre_dir):
+                        # 硬链接不支持目录，降级为软链接
+                        os.symlink(calibre_dir, temp_link, target_is_directory=True)
+                    else:
+                        os.link(calibre_dir, temp_link)
+                else:
+                    os.symlink(calibre_dir, temp_link, target_is_directory=True)
                 # 原子重命名替换旧链接
                 os.replace(temp_link, link_path)
+            except OSError:
+                # Windows 可能不支持 symlink，降级为快捷方式
+                if platform.system() == "Windows":
+                    self._create_shortcut(calibre_dir, link_path)
+                else:
+                    raise
             finally:
                 fcntl.flock(lf, fcntl.LOCK_UN)
-                # 清理临时文件（如果重命名失败）
-                if os.path.islink(temp_link):
-                    os.unlink(temp_link)
+                # 清理临时文件
+                if temp_link and os.path.lexists(temp_link):
+                    try:
+                        os.unlink(temp_link)
+                    except OSError:
+                        pass
+
+    def _create_shortcut(self, target, link_path):
+        """Windows 降级方案：创建 .url 快捷方式文件"""
+        with open(link_path + '.url', 'w') as f:
+            f.write('[InternetShortcut]\n')
+            f.write(f'URL=file:///{target}\n')
 
     def clean_stale_links(self, target_directory):
-        """清理目标目录中不再匹配规则的死链接"""
+        """清理目标目录中不再匹配规则的死链接（目标不存在或不再匹配规则）"""
         safe_target = self._validate_target_directory(target_directory)
         pass
 ```
@@ -423,11 +511,15 @@ from flask_babel import lazy_gettext as N_
 from cps.services.worker import CalibreTask
 
 class TaskFileOrganize(CalibreTask):
-    def __init__(self, rule_ids=None, book_ids=None, user_id=None):
+    def __init__(self, rule_ids=None, book_ids=None, user_id=None, max_retries=3):
         super().__init__(message=N_("File Organization"))
         self.rule_ids = rule_ids  # 要应用的规则
         self.book_ids = book_ids  # 要处理的图书
         self.user_id = user_id
+        self.max_retries = max_retries  # 失败重试次数
+        self.retry_count = 0
+        self._processed = 0
+        self._total = 0
 
     @property
     def name(self):
@@ -438,9 +530,33 @@ class TaskFileOrganize(CalibreTask):
         return True
 
     def run(self, worker_thread):
-        """执行文件组织任务（创建/更新软链接）。注意：需要进入 app_context。"""
+        """执行文件组织任务（创建/更新软链接）。注意：需要进入 app_context。
+        分批处理（每批50本），支持进度上报和失败重试。"""
         pass
 ```
+
+### 4.3 服务层增强机制
+
+#### 4.3.1 任务进度上报机制
+所有 CalibreTask 子类通过 `self.progress` 属性上报进度（0.0~1.0），由 tasks_status.py 中的 AJAX 轮询接口 `/ajax/emailstat` 获取（现有机制，无需新增接口）。前端 JS 通过 `setInterval` 定时轮询更新进度条。
+
+#### 4.3.2 失败重试机制
+- TaskMetadataScan 和 TaskFileOrganize 均支持 `max_retries` 参数（默认 3 次）
+- 单本图书失败不影响整体扫描/组织流程
+- 失败记录写入 ScanHistory.error_log 或任务 error 属性
+- 重试仅针对网络错误和临时性失败，永久性错误（如路径不存在）不重试
+
+#### 4.3.3 前端实时更新策略
+- 使用 `setInterval` 轮询 `/ajax/emailstat`（复用现有接口）
+- 轮询间隔 2 秒，任务完成后自动停止轮询
+- 进度条使用 Bootstrap 3.x 的 `.progress-bar` 组件
+- 任务状态实时展示：等待中 / 运行中 / 已完成 / 失败 / 已取消
+
+#### 4.3.4 前端分页与批量操作
+- 标签库列表使用 Bootstrap 3.x 分页组件（复用现有 `render_pagination` 机制）
+- 支持按分类筛选、按关键词搜索
+- 批量操作：选中多个标签后执行批量分类、批量删除
+- 规则列表支持拖拽排序（使用 sortable.js 轻量库，无需 jQuery UI）
 
 #### 4.2.5 cps/metadata_scheduler.py (新增)
 ```python
@@ -671,17 +787,20 @@ TagLibrary 表作为 Calibre Tags 表的扩展元数据层，两者通过 `Calib
 - **Windows**：需要管理员权限或启用开发者模式。若权限不足，降级为复制 `.url` 快捷方式文件
 - **Google Drive**：不支持软链接，Google Drive 模式下此功能自动禁用，UI 提示不可用
 
-**FileOrganizerService.move_book_file() 更新**：
+**FileOrganizerService.create_link() 更新**：
 ```python
-def create_symlink(self, book, target_directory):
-    """在目标目录下创建指向 Calibre 原始目录的软链接"""
+def create_link(self, book, target_directory, link_type="symlink"):
+    """在目标目录下创建指向 Calibre 原始目录的链接（软链接或硬链接）"""
     calibre_dir = os.path.join(config.config_calibre_dir, book.path)
     link_name = get_valid_filename(book.title, chars=96) + " (" + str(book.id) + ")"
     link_path = os.path.join(target_directory, link_name)
     # 移除旧链接
     if os.path.islink(link_path):
         os.unlink(link_path)
-    os.symlink(calibre_dir, link_path, target_is_directory=True)
+    if link_type == "hardlink":
+        os.link(calibre_dir, link_path)
+    else:
+        os.symlink(calibre_dir, link_path, target_is_directory=True)
 
 def apply_rules_via_symlink(self, rule):
     """根据规则创建软链接"""
@@ -695,29 +814,32 @@ def apply_rules_via_symlink(self, rule):
 
 ## 5. 实施步骤
 
-### 阶段一：数据库和基础服务
-1. 在 ub.py 中添加新表结构
-2. 实现 TagLibraryService
-3. 实现 FileOrganizerService
+### 阶段一：数据库迁移和基础服务
+1. 在 ub.py 中添加新表结构（TagLibrary, FileOrganizationRules, FileOrgRuleTags, ScanHistory）
+2. 更新 migrate_Database() 函数添加数据库迁移逻辑
+3. 实现 TagLibraryService 基础框架
+4. 实现 FileOrganizerService 基础框架
 
-### 阶段二：元数据扫描功能
-1. 实现 TaskMetadataScan
+### 阶段二：标签库功能（前置，元数据扫描依赖标签库）
+1. 实现 TagLibraryService 完整功能（同步、CRUD、合并、一致性检查）
+2. 实现 tag_library.py 控制器
+3. 实现前端标签库管理界面
+
+### 阶段三：元数据扫描功能
+1. 实现 TaskMetadataScan 完整功能（含 SSRFProtection、ISBN 批量预加载、进度上报）
 2. 实现 metadata_scheduler.py 控制器
-3. 实现前端界面
-
-### 阶段三：标签库功能
-1. 实现 tag_library.py 控制器
-2. 实现前端界面
+3. 实现前端元数据扫描界面（含进度轮询）
 
 ### 阶段四：文件组织功能
-1. 实现 TaskFileOrganize
+1. 实现 TaskFileOrganize 完整功能（含软链接/硬链接创建、校验、清理）
 2. 实现 file_organizer.py 控制器
-3. 实现前端界面
+3. 实现前端文件组织界面（含规则预览）
 
 ### 阶段五：集成与测试
 1. 在 main.py 中注册新蓝图（注意：蓝图注册在 main.py 而非 __init__.py）
-2. 完善权限控制
-3. 测试与文档
+2. 完善权限控制与 CSRF 保护
+3. 编写单元测试与集成测试
+4. 代码审查与安全审计
 
 ---
 
@@ -740,6 +862,14 @@ def apply_rules_via_symlink(self, rule):
   - **缓解**：UI 中明确标注各 provider 的标签支持状态，用户选择时给予提示
 - **风险6**：Calibre Tags 表 name 无唯一约束导致同名歧义
   - **缓解**：TagLibrary 以 `Tags.id` 为唯一标识，应用层处理同名冲突并提示用户手动去重
+- **风险7**：标签合并性能 — 大量图书的标签合并可能导致长时间锁表
+  - **缓解**：分批处理（每批500本书），提供进度反馈，支持暂停/恢复；合并操作异步执行
+- **风险8**：软链接数量限制 — 文件系统对单个目录的软链接数量可能有限制（ext4 约 65000）
+  - **缓解**：使用多层子目录分散链接数量；监控目录链接数，超限时自动创建子目录
+- **风险9**：任务队列溢出 — 大量图书同时扫描可能导致任务队列溢出
+  - **缓解**：限制单次扫描最大图书数（默认500本），超出部分提示分批处理
+- **风险10**：数据库迁移 — 新增表需要数据库迁移脚本兼容已有用户
+  - **缓解**：使用 `Base.metadata.create_all()` 自动创建缺失表；在 `migrate_Database()` 中添加检测逻辑
 
 ---
 

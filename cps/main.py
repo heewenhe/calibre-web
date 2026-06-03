@@ -43,6 +43,9 @@ def main():
     from .tasks_status import tasks
     from .error_handler import init_errorhandler
     from .remotelogin import remotelogin
+    from .tag_library import tag_library
+    from .metadata_scheduler import metadata_scheduler
+    from .file_organizer import file_organizer
     try:
         from .kobo import kobo, get_kobo_activated
         from .kobo_auth import kobo_auth
@@ -76,6 +79,9 @@ def main():
     app.register_blueprint(meta)
     app.register_blueprint(gdrive)
     app.register_blueprint(editbook)
+    app.register_blueprint(tag_library)
+    app.register_blueprint(metadata_scheduler)
+    app.register_blueprint(file_organizer)
     if kobo_available:
         limiter.limit("3/minute", key_func=get_remote_address)(kobo)
         app.register_blueprint(kobo)
