@@ -1,0 +1,150 @@
+{% extends "layout.html" %}
+{% block body %}
+<div class="container-fluid">
+  <div class="row">
+    <div class="col">
+      <h2>{{_('Metadata Scan')}}</h2>
+
+      <div class="panel panel-default">
+        <div class="panel-heading">
+          <h3 class="panel-title">{{_('Start New Scan')}}</h3>
+        </div>
+        <div class="panel-body">
+          <form id="scanForm">
+            <div class="form-group">
+              <label for="providerSelect">{{_('Metadata Provider')}}</label>
+              <select class="form-control" id="providerSelect">
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="bookSelect">{{_('Books to Scan')}}</label>
+              <select class="form-control" id="bookSelect">
+                <option value="all">{{_('All Books')}}</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="maxRetries">{{_('Max Retries per Book')}}</label>
+              <input type="number" class="form-control" id="maxRetries" value="3" min="1" max="10">
+            </div>
+            <button type="button" class="btn btn-primary" id="startScanBtn">{{_('Start Scan')}}</button>
+          </form>
+        </div>
+      </div>
+
+      <div class="panel panel-default" id="progressPanel" style="display: none;">
+        <div class="panel-heading">
+          <h3 class="panel-title">{{_('Scan Progress')}}</h3>
+        </div>
+        <div class="panel-body">
+          <div class="progress">
+            <div class="progress-bar progress-bar-success" role="progressbar" id="progressBar" style="width: 0%">
+              <span class="sr-only">0% Complete</span>
+            </div>
+          </div>
+          <p id="statusText">0/0</p>
+        </div>
+      </div>
+
+      <div class="panel panel-default">
+        <div class="panel-heading">
+          <h3 class="panel-title">{{_('Scan History')}}</h3>
+        </div>
+        <div class="panel-body">
+          <table class="table table-striped" id="scanHistoryTable">
+            <thead>
+              <tr>
+                <th>{{_('Date')}}</th>
+                <th>{{_('Provider')}}</th>
+                <th>{{_('Total Books')}}</th>
+                <th>{{_('Processed')}}</th>
+                <th>{{_('Tags Added')}}</th>
+                <th>{{_('Tags Skipped')}}</th>
+                <th>{{_('Status')}}</th>
+              </tr>
+            </thead>
+            <tbody id="scanHistoryBody">
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="text/javascript">
+$(document).ready(function() {
+    // Load providers
+    $.ajax({
+        url: "{{url_for('metadata_scheduler.api_get_providers')}}",
+        type: 'GET',
+        success: function(data) {
+            var select = $('#providerSelect');
+            select.empty();
+            $.each(data.providers, function(i, provider) {
+                if (provider.supports_tags) {
+                    select.append('<option value="' + provider.id + '">' + provider.name + '</option>');
+                }
+            });
+        }
+    });
+
+    // Load scan history
+    loadScanHistory();
+
+    // Start scan button
+    $('#startScanBtn').click(function() {
+        var providerId = $('#providerSelect').val();
+        var maxRetries = $('#maxRetries').val();
+        $.ajax({
+            url: "{{url_for('metadata_scheduler.api_start_scan')}}",
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({
+                provider_id: providerId,
+                book_ids: null,
+                max_retries: parseInt(maxRetries)
+            }),
+            success: function(data) {
+                if (data.success) {
+                    $('#progressPanel').show();
+                    alert('{{_('Scan started')}}');
+                    // Poll for progress
+                    pollProgress();
+                } else {
+                    alert('{{_('Error')}}: ' + data.error);
+                }
+            }
+        });
+    });
+});
+
+function loadScanHistory() {
+    $.ajax({
+        url: "{{url_for('metadata_scheduler.api_get_scan_history')}}",
+        type: 'GET',
+        success: function(data) {
+            var tbody = $('#scanHistoryBody');
+            tbody.empty();
+            $.each(data.records, function(i, record) {
+                tbody.append(
+                    '<tr>' +
+                    '<td>' + (record.started_at || '') + '</td>' +
+                    '<td>' + record.provider + '</td>' +
+                    '<td>' + record.total_books + '</td>' +
+                    '<td>' + record.processed_books + '</td>' +
+                    '<td>' + record.tags_added + '</td>' +
+                    '<td>' + record.tags_skipped + '</td>' +
+                    '<td>' + record.status + '</td>' +
+                    '</tr>'
+                );
+            });
+        }
+    });
+}
+
+function pollProgress() {
+    // This is a placeholder for progress polling
+    // In real implementation, you would use the existing tasks polling interface
+}
+</script>
+{% endblock %}

@@ -1,0 +1,163 @@
+{% extends "layout.html" %}
+{% block body %}
+<div class="container-fluid">
+  <div class="row">
+    <div class="col">
+      <h2>{{_('Tag Library')}}</h2>
+
+      <div class="panel panel-default">
+        <div class="panel-heading">
+          <h3 class="panel-title">
+            <div class="btn-group">
+              <button type="button" class="btn btn-success" id="syncBtn">{{_('Sync from Calibre')}}</button>
+              <button type="button" class="btn btn-info" id="consistencyBtn">{{_('Check Consistency')}}</button>
+            </div>
+          </h3>
+        </div>
+        <div class="panel-body">
+          <div class="row">
+            <div class="col-md-4">
+              <div class="form-group">
+                <input type="text" class="form-control" id="searchInput" placeholder="{{_('Search tags')}}">
+              </div>
+            </div>
+            <div class="col-md-2">
+              <select class="form-control" id="categoryFilter">
+                <option value="">{{_('All Categories')}}</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <button class="btn btn-default" id="addTagBtn">{{_('Add New Tag')}}</button>
+            </div>
+          </div>
+
+          <table class="table table-striped" id="tagTable">
+            <thead>
+              <tr>
+                <th>{{_('Name')}}</th>
+                <th>{{_('Category')}}</th>
+                <th>{{_('Description')}}</th>
+                <th>{{_('Usage Count')}}</th>
+                <th>{{_('Active')}}</th>
+                <th>{{_('Actions')}}</th>
+              </tr>
+            </thead>
+            <tbody id="tagTableBody">
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="text/javascript">
+$(document).ready(function() {
+    loadTags();
+
+    // Sync button
+    $('#syncBtn').click(function() {
+        $.ajax({
+            url: "{{url_for('tag_library.api_sync_from_calibre')}}",
+            type: 'POST',
+            success: function(data) {
+                if (data.success) {
+                    alert('{{_('Synced')}}');
+                    loadTags();
+                } else {
+                    alert('{{_('Error')}}: ' + data.error);
+                }
+            }
+        });
+    });
+
+    // Consistency check button
+    $('#consistencyBtn').click(function() {
+        $.ajax({
+            url: "{{url_for('tag_library.api_consistency_check')}}",
+            type: 'GET',
+            success: function(data) {
+                if (data.success) {
+                    alert('{{_('Consistency check complete')}}');
+                } else {
+                    alert('{{_('Error')}}: ' + data.error);
+                }
+            }
+        });
+    });
+
+    // Add tag button
+    $('#addTagBtn').click(function() {
+        var name = prompt('{{_('Enter tag name')}}');
+        if (name) {
+            var category = prompt('{{_('Enter category (optional)')}}', '');
+            var description = prompt('{{_('Enter description (optional)}}', '');
+            $.ajax({
+                url: "{{url_for('tag_library.api_add_tag')}}",
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({
+                    name: name,
+                    category: category,
+                    description: description
+                }),
+                success: function(data) {
+                    if (data.success) {
+                        alert('{{_('Tag added')}}');
+                        loadTags();
+                    } else {
+                        alert('{{_('Error')}}: ' + data.error);
+                    }
+                }
+            });
+        }
+    });
+});
+
+function loadTags() {
+    $.ajax({
+        url: "{{url_for('tag_library.api_get_tags')}}",
+        type: 'GET',
+        success: function(data) {
+            var tbody = $('#tagTableBody');
+            tbody.empty();
+            $.each(data.tags, function(i, tag) {
+                tbody.append(
+                    '<tr>' +
+                    '<td>' + tag.name + '</td>' +
+                    '<td>' + tag.category + '</td>' +
+                    '<td>' + tag.description + '</td>' +
+                    '<td>' + tag.usage_count + '</td>' +
+                    '<td>' + (tag.is_active ? 'Yes' : 'No') + '</td>' +
+                    '<td>' +
+                    '<button class="btn btn-sm btn-primary" onclick="editTag(' + tag.id + ')">{{_('Edit')}}</button> ' +
+                    '<button class="btn btn-sm btn-danger" onclick="deleteTag(' + tag.id + ')">{{_('Delete')}}</button>' +
+                    '</td>' +
+                    '</tr>'
+                );
+            });
+        }
+    });
+}
+
+function editTag(tagId) {
+    alert('{{_('Edit tag')}}');
+}
+
+function deleteTag(tagId) {
+    if (confirm('{{_('Are you sure you want to delete this tag?')}}')) {
+        $.ajax({
+            url: "{{url_for('tag_library.api_delete_tag', tag_id='')}}/" + tagId,
+            type: 'DELETE',
+            success: function(data) {
+                if (data.success) {
+                    loadTags();
+                } else {
+                    alert('{{_('Error')}}: ' + data.error);
+                }
+            }
+        });
+    }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,154 @@
+{% extends "layout.html" %}
+{% block body %}
+<div class="container-fluid">
+  <div class="row">
+    <div class="col">
+      <h2>{{_('File Organizer')}}</h2>
+
+      {% if gdrive_mode %}
+        <div class="alert alert-warning" role="alert">
+          {{_('File organization is not available in Google Drive mode. Symlinks are not supported by Google Drive.')}}
+        </div>
+      {% endif %}
+
+      <div class="panel panel-default">
+        <div class="panel-heading">
+          <h3 class="panel-title">{{_('File Organization Rules')}}</h3>
+        </div>
+        <div class="panel-body">
+          <button class="btn btn-primary" id="addRuleBtn">{{_('Add New Rule')}}</button>
+          <table class="table table-striped" id="ruleTable">
+            <thead>
+              <tr>
+                <th>{{_('Name')}}</th>
+                <th>{{_('Tags')}}</th>
+                <th>{{_('Combination')}}</th>
+                <th>{{_('Target Directory')}}</th>
+                <th>{{_('Link Type')}}</th>
+                <th>{{_('Priority')}}</th>
+                <th>{{_('Active')}}</th>
+                <th>{{_('Actions')}}</th>
+              </tr>
+            </thead>
+            <tbody id="ruleTableBody">
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel panel-default">
+        <div class="panel-heading">
+          <h3 class="panel-title">{{_('Apply Rules')}}</h3>
+        </div>
+        <div class="panel-body">
+          <div class="btn-group">
+            <button type="button" class="btn btn-success" id="applyAllBtn">{{_('Apply All Rules')}}</button>
+            <button type="button" class="btn btn-warning" id="previewBtn">{{_('Preview Only')}}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="text/javascript">
+$(document).ready(function() {
+    loadRules();
+
+    // Add rule button
+    $('#addRuleBtn').click(function() {
+        var name = prompt('{{_('Enter rule name')}}');
+        if (name) {
+            var tags = prompt('{{_('Enter tags (comma separated)}}');
+            var targetDir = prompt('{{_('Enter target directory')}}');
+            var priority = prompt('{{_('Enter priority')}}', '0');
+
+            $.ajax({
+                url: "{{url_for('file_organizer.api_add_rule')}}",
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({
+                    name: name,
+                    tag_names: tags ? tags.split(',') : [],
+                    tag_combination: 'any',
+                    target_directory: targetDir,
+                    priority: parseInt(priority),
+                    link_type: 'symlink'
+                }),
+                success: function(data) {
+                    if (data.success) {
+                        alert('{{_('Rule added')}}');
+                        loadRules();
+                    } else {
+                        alert('{{_('Error')}}: ' + data.error);
+                    }
+                }
+            });
+        }
+    });
+
+    // Apply all rules button
+    $('#applyAllBtn').click(function() {
+        $.ajax({
+            url: "{{url_for('file_organizer.api_apply_rules')}}",
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({
+                rule_ids: null,
+                book_ids: null
+            }),
+            success: function(data) {
+                if (data.success) {
+                    alert('{{_('File organization task started')}}');
+                } else {
+                    alert('{{_('Error')}}: ' + data.error);
+                }
+            }
+        });
+    });
+});
+
+function loadRules() {
+    $.ajax({
+        url: "{{url_for('file_organizer.api_get_rules')}}",
+        type: 'GET',
+        success: function(data) {
+            var tbody = $('#ruleTableBody');
+            tbody.empty();
+            $.each(data.rules, function(i, rule) {
+                tbody.append(
+                    '<tr>' +
+                    '<td>' + rule.name + '</td>' +
+                    '<td>' + rule.tag_names.join(', ') + '</td>' +
+                    '<td>' + rule.tag_combination + '</td>' +
+                    '<td>' + rule.target_directory + '</td>' +
+                    '<td>' + rule.link_type + '</td>' +
+                    '<td>' + rule.priority + '</td>' +
+                    '<td>' + (rule.is_active ? 'Yes' : 'No') + '</td>' +
+                    '<td>' +
+                    '<button class="btn btn-sm btn-danger" onclick="deleteRule(' + rule.id + ')">{{_('Delete')}}</button>' +
+                    '</td>' +
+                    '</tr>'
+                );
+            });
+        }
+    });
+}
+
+function deleteRule(ruleId) {
+    if (confirm('{{_('Are you sure you want to delete this rule?')}}')) {
+        $.ajax({
+            url: "{{url_for('file_organizer.api_delete_rule', rule_id='')}}/" + ruleId,
+            type: 'DELETE',
+            success: function(data) {
+                if (data.success) {
+                    loadRules();
+                } else {
+                    alert('{{_('Error')}}: ' + data.error);
+                }
+            }
+        });
+    }
+}
+</script>
+{% endblock %}
