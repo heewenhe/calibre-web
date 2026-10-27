@@ -1,0 +1,33 @@
+{% macro render_pagination(pagination) -%}
+  {% if pagination and (pagination.has_next or pagination.has_prev) %}
+    <nav aria-label="{{ _('Pagination') }}">
+      <ul class="pagination">
+        {% if pagination.has_prev %}
+          <li class="page-item page-previous">
+            <a class="page-link" rel="prev" aria-label="{{ _('Previous page') }}"
+               href="{{ (pagination.page - 1)|url_for_other_page }}">&laquo; {{ _('Previous') }}</a>
+          </li>
+        {% endif %}
+        {% for p in pagination.iter_pages() %}
+          {% if p %}
+            <li class="page-item{% if p == pagination.page %} active{% endif %}">
+              <a class="page-link" href="{{ p|url_for_other_page }}"
+                 {% if p == pagination.page %}aria-current="page"{% endif %}
+                 aria-label="{{ _('Page %(page)s', page=p) }}">{{ p }}</a>
+            </li>
+          {% else %}
+            <li class="page-item disabled">
+              <span class="page-link" aria-hidden="true">&hellip;</span>
+            </li>
+          {% endif %}
+        {% endfor %}
+        {% if pagination.has_next %}
+          <li class="page-item page-next">
+            <a class="page-link next" rel="next" aria-label="{{ _('Next page') }}"
+               href="{{ (pagination.page + 1)|url_for_other_page }}">{{ _('Next') }} &raquo;</a>
+          </li>
+        {% endif %}
+      </ul>
+    </nav>
+  {% endif %}
+{%- endmacro %}

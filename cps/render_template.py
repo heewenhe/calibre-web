@@ -87,9 +87,9 @@ def get_sidebar_config(kwargs=None):
     sidebar.append({"glyph": "glyphicon-random", "text": _('Discover'), "link": 'web.books_list', "id": "rand",
                     "visibility": constants.SIDEBAR_RANDOM, 'public': True, "page": "discover",
                     "show_text": _('Show Random Books'), "config_show": True})
-    sidebar.append({"glyph": "glyphicon-tags", "text": _('Categories'), "link": 'web.category_list', "id": "cat",
+    sidebar.append({"glyph": "glyphicon-tags", "text": _('Tags'), "link": 'web.category_list', "id": "cat",
                     "visibility": constants.SIDEBAR_CATEGORY, 'public': True, "page": "category", "no_param":True,
-                    "show_text": _('Show Category Section'), "config_show": True})
+                    "show_text": _('Show Tag Section'), "config_show": True})
     sidebar.append({"glyph": "glyphicon-bookmark", "text": _('Series'), "link": 'web.series_list', "id": "serie",
                     "visibility": constants.SIDEBAR_SERIES, 'public': True, "page": "series", "no_param":True,
                     "show_text": _('Show Series Section'), "config_show": True})
@@ -122,6 +122,19 @@ def get_sidebar_config(kwargs=None):
     g.shelves_access = ub.session.query(ub.Shelf).filter(
         or_(ub.Shelf.is_public == 1, ub.Shelf.user_id == current_user.id)).order_by(ub.Shelf.name).all()
 
+    # Group the flat sidebar configuration for the layout templates. Items keep
+    # their original order inside each group; empty groups are omitted.
+    group_definition = [
+        ("library", _("Library"), ["new", "hot", "rated", "rand"]),
+        ("browse", _("Browse"), ["author", "cat", "serie", "publisher", "lang", "rate", "format"]),
+        ("reading", _("My Reading"), ["read", "unread", "download", "archived", "list"]),
+    ]
+    g.sidebar_groups = []
+    for group_id, group_text, item_ids in group_definition:
+        items = [element for element in sidebar if element["id"] in item_ids]
+        if items:
+            g.sidebar_groups.append({"id": group_id, "text": group_text, "items": items})
+
     return sidebar, simple
 
 
@@ -132,6 +145,7 @@ def render_title_template(*args, **kwargs):
         return themed_render(args[0],
                              instance=config.config_calibre_web_title,
                              sidebar=sidebar,
+                             sidebar_groups=getattr(g, 'sidebar_groups', None),
                              simple=simple,
                              accept=config.config_upload_formats.split(','),
                              **kwargs)

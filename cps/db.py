@@ -816,6 +816,103 @@ class CalibreDB:
         return and_(lang_filter, pos_content_tags_filter, ~neg_content_tags_filter,
                     pos_content_cc_filter, ~neg_content_cc_filter, archived_filter)
 
+    def get_facets(self, limit=8):
+        """Return facet groups (tags, authors, languages, years, formats,
+        ratings and reading status) with the number of visible books for
+        each value. Values are returned as (value, label, count)."""
+        base_filter = self.common_filters()
+        facets = []
+
+        tag_rows = (self.session.query(Tags.id, Tags.name, func.count(Books.id))
+                    .select_from(Books)
+                    .join(books_tags_link, books_tags_link.c.book == Books.id)
+                    .join(Tags, Tags.id == books_tags_link.c.tag)
+                    .filter(base_filter)
+                    .group_by(Tags.id, Tags.name)
+                    .order_by(func.count(Books.id).desc(), Tags.name)
+                    .limit(limit).all())
+        facets.append({'key': 'tag', 'label': _('Tags'), 'values': tag_rows})
+
+        author_rows = (self.session.query(Authors.id, Authors.name, func.count(Books.id))
+                       .select_from(Books)
+                       .join(books_authors_link, books_authors_link.c.book == Books.id)
+                       .join(Authors, Authors.id == books_authors_link.c.author)
+                       .filter(base_filter)
+                       .group_by(Authors.id, Authors.name)
+                       .order_by(func.count(Books.id).desc(), Authors.name)
+                       .limit(limit).all())
+        facets.append({'key': 'author', 'label': _('Authors'), 'values': author_rows})
+
+        language_rows = (self.session.query(Languages.lang_code, func.count(Books.id))
+                         .select_from(Books)
+                         .join(books_languages_link, books_languages_link.c.book == Books.id)
+                         .join(Languages, Languages.id == books_languages_link.c.lang_code)
+                         .filter(base_filter)
+                         .group_by(Languages.lang_code)
+                         .order_by(func.count(Books.id).desc())
+                         .limit(limit).all())
+        language_values = []
+        for lang_code, count in language_rows:
+            try:
+                language_name = isoLanguages.get_language_name(get_locale(), lang_code)
+            except (KeyError, AttributeError):
+                language_name = lang_code
+            language_values.append((lang_code, language_name, count))
+        facets.append({'key': 'lang', 'label': _('Languages'), 'values': language_values})
+
+        year_expr = func.strftime('%Y', Books.pubdate)
+        year_rows = (self.session.query(year_expr.label('year'), func.count(Books.id))
+                     .select_from(Books)
+                     .filter(base_filter)
+                     .filter(Books.pubdate.isnot(None))
+                     .filter(year_expr != '0101')
+                     .group_by(text('year'))
+                     .order_by(text('year DESC'))
+                     .limit(limit).all())
+        facets.append({'key': 'year', 'label': _('Published year'),
+                       'values': [(year, year, count) for year, count in year_rows]})
+
+        format_rows = (self.session.query(Data.format, func.count(Books.id))
+                       .select_from(Books)
+                       .join(Data, Data.book == Books.id)
+                       .filter(base_filter)
+                       .group_by(Data.format)
+                       .order_by(func.count(Books.id).desc())
+                       .limit(limit).all())
+        facets.append({'key': 'format', 'label': _('File formats'), 'values': format_rows})
+
+        rating_rows = (self.session.query(Ratings.rating, func.count(Books.id))
+                       .select_from(Books)
+                       .join(books_ratings_link, books_ratings_link.c.book == Books.id)
+                       .join(Ratings, Ratings.id == books_ratings_link.c.rating)
+                       .filter(base_filter)
+                       .group_by(Ratings.rating)
+                       .order_by(Ratings.rating.desc())
+                       .limit(limit).all())
+        rating_values = []
+        for rating, count in rating_rows:
+            rating_values.append((rating, '{0:g} / 5'.format(rating / 2), count))
+        facets.append({'key': 'rating', 'label': _('Rating'), 'values': rating_values})
+
+        if not current_user.is_anonymous and not self.config.config_read_column:
+            status_values = []
+            for status, label in ((ub.ReadBook.STATUS_IN_PROGRESS, _('In progress')),
+                                  (ub.ReadBook.STATUS_UNREAD, _('Unread')),
+                                  (ub.ReadBook.STATUS_FINISHED, _('Read'))):
+                book_ids = [row.book_id for row in ub.session.query(ub.ReadBook.book_id)
+                            .filter(ub.ReadBook.user_id == int(current_user.id),
+                                    ub.ReadBook.read_status == status).all()]
+                if not book_ids:
+                    continue
+                count = (self.session.query(Books.id)
+                         .filter(base_filter)
+                         .filter(Books.id.in_(book_ids)).count())
+                if count:
+                    status_values.append((status, label, count))
+            facets.append({'key': 'status', 'label': _('Reading status'), 'values': status_values})
+
+        return facets
+
     def generate_linked_query(self, config_read_column, database):
         if not config_read_column:
             query = (self.session.query(database, ub.ArchivedBook.is_archived, ub.ReadBook.read_status)
@@ -863,13 +960,9 @@ class CalibreDB:
     def fill_indexpage_with_archived_books(self, page, database, pagesize, db_filter, order, allow_show_archived,
                                            join_archive_read, config_read_column, *join):
         pagesize = pagesize or self.config.config_books_per_page
-        if current_user.show_detail_random():
-            random_query = self.generate_linked_query(config_read_column, database)
-            randm = (random_query.filter(self.common_filters(allow_show_archived))
-                     .order_by(func.random())
-                     .limit(self.config.config_random_books).all())
-        else:
-            randm = false()
+        # The home page no longer renders a random books block, so skip the
+        # extra random query on every list page.
+        randm = false()
         if join_archive_read:
             query = self.generate_linked_query(config_read_column, database)
         else:
@@ -891,6 +984,9 @@ class CalibreDB:
                 query = query.outerjoin(join[element])
                 indx -= 1
                 element += 1
+        facet_filter = getattr(g, 'facet_filter', None)
+        if facet_filter is not None:
+            db_filter = and_(db_filter, facet_filter)
         query = query.filter(db_filter)\
             .filter(self.common_filters(allow_show_archived))
         entries = list()

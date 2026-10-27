@@ -1,0 +1,61 @@
+{% macro facets_panel(facets) -%}
+  {% if facets and facets.groups %}
+    <button type="button" class="facet-drawer-toggle" aria-controls="facetBody" aria-expanded="false"
+            data-facet-drawer-toggle>
+      <span class="glyphicon glyphicon-filter" aria-hidden="true"></span>
+      <span>{{ _('Filters') }}</span>
+      {% if facets.active %}<span class="badge">{{ facets.active|length }}</span>{% endif %}
+    </button>
+    <div class="facet-backdrop" data-facet-drawer-close hidden></div>
+    <section class="facet-panel" aria-label="{{ _('Filters') }}">
+      <div class="facet-panel-header">
+        <button type="button" class="btn btn-default btn-sm" data-toggle="collapse"
+                data-target="#facetBody" aria-expanded="true" aria-controls="facetBody">
+          <span class="glyphicon glyphicon-filter" aria-hidden="true"></span>
+          {{ _('Filters') }}
+          {% if facets.active %}<span class="badge">{{ facets.active|length }}</span>{% endif %}
+        </button>
+        {% if facets.active %}
+          <a class="btn btn-link btn-sm" href="{{ facets.clear_url }}">{{ _('Clear all') }}</a>
+        {% endif %}
+        <button type="button" class="btn btn-default btn-sm facet-drawer-close" data-facet-drawer-close
+                aria-label="{{ _('Close filters') }}">&times;</button>
+      </div>
+
+      {% if facets.active %}
+        <ul class="facet-chips" aria-label="{{ _('Active filters') }}">
+          {% for item in facets.active %}
+            <li>
+              <a class="facet-chip" href="{{ item.url }}">
+                {{ item.label }}
+                <span aria-hidden="true">&times;</span>
+                <span class="sr-only">{{ _('Remove filter') }}</span>
+              </a>
+            </li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+
+      <div class="collapse in" id="facetBody">
+        <div class="facet-groups">
+          {% for group in facets.groups %}
+            <div class="facet-group">
+              <h3>{{ group.label }}</h3>
+              <ul>
+                {% for value in group.values %}
+                  <li>
+                    <a class="facet-link{% if value.active %} active{% endif %}" href="{{ value.url }}"
+                       aria-pressed="{{ 'true' if value.active else 'false' }}">
+                      <span>{{ value.label }}</span>
+                      <span class="facet-count">{{ value.count }}</span>
+                    </a>
+                  </li>
+                {% endfor %}
+              </ul>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+  {% endif %}
+{%- endmacro %}
