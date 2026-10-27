@@ -353,7 +353,8 @@ body:not(.blur) #scnd-nav li.active > a {
 
 .facet-drawer-toggle,
 .facet-backdrop,
-.facet-drawer-close {
+.facet-drawer-close,
+.facet-drawer-header {
   display: none;
 }
 
@@ -425,6 +426,14 @@ body:not(.blur) #scnd-nav li.active > a {
     border: 0;
   }
 
+  .facet-drawer-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--cw-space-2);
+    font-weight: 600;
+  }
+
   .facet-drawer-close {
     display: inline-flex;
     align-items: center;
@@ -432,5 +441,25 @@ body:not(.blur) #scnd-nav li.active > a {
     margin-left: auto;
     font-size: var(--cw-font-size-lg);
     line-height: 1;
+  }
+}
+
+/* Related books sit inside the detail modal, keep the cards wider. */
+
+.related-books .book {
+  width: 25%;
+}
+
+.related-books .book-tags {
+  display: none;
+}
+
+.related-books .rating {
+  white-space: nowrap;
+}
+
+@media (max-width: 767px) {
+  .related-books .book {
+    width: 50%;
   }
 }

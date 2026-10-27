@@ -879,7 +879,8 @@ class CalibreDB:
                        .group_by(Data.format)
                        .order_by(func.count(Books.id).desc())
                        .limit(limit).all())
-        facets.append({'key': 'format', 'label': _('File formats'), 'values': format_rows})
+        facets.append({'key': 'format', 'label': _('File formats'),
+                       'values': [(file_format, file_format, count) for file_format, count in format_rows]})
 
         rating_rows = (self.session.query(Ratings.rating, func.count(Books.id))
                        .select_from(Books)

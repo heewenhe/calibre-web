@@ -618,7 +618,7 @@ def render_books_list(data, sort_param, book_id, page):
         continue_reading = get_continue_reading() if is_home else []
         # Skip the extra query when the user is already filtering or sorting the
         # main grid, the section would not match the visible selection.
-        recent_books = get_recent_books() if is_home and not getattr(g, 'facet_filter', None) else []
+        recent_books = get_recent_books() if is_home and getattr(g, 'facet_filter', None) is None else []
         return render_title_template('index.html', random=random, entries=entries, pagination=pagination,
                                      continue_reading=continue_reading,
                                      recent_books=recent_books,
