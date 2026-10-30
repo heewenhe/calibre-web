@@ -24,8 +24,9 @@ import mimetypes
 import chardet  # dependency of requests
 import copy
 from importlib.metadata import metadata
+from urllib.parse import urlencode
 
-from flask import Blueprint, jsonify, request, redirect, send_from_directory, make_response, flash, abort, url_for
+from flask import Blueprint, jsonify, request, redirect, send_from_directory, make_response, flash, abort, url_for, g
 from flask import session as flask_session
 from flask_babel import gettext as _
 from flask_babel import get_locale
@@ -176,11 +177,14 @@ def set_bookmark(book_id, book_format):
 @web.route("/ajax/toggleread/<int:book_id>", methods=['POST'])
 @user_login_required
 def toggle_read(book_id):
-    message = edit_book_read_status(book_id)
+    status = request.form.get('status', type=int)
+    message = edit_book_read_status(book_id, status)
     if message:
         return message, 400
-    else:
-        return message
+    next_url = request.form.get('next') or request.args.get('next')
+    if next_url and next_url.startswith('/') and not next_url.startswith('//'):
+        return redirect(next_url)
+    return message
 
 
 @web.route("/ajax/togglearchived/<int:book_id>", methods=['POST'])
@@ -374,7 +378,198 @@ def get_sort_function(sort_param, data):
     return order, sort_param
 
 
+# Facets are plain query parameters (`tag=1&tag=2&lang=eng`). They are merged
+# into every list query, so they work on all existing list routes without
+# changing their URL scheme.
+FACET_KEYS = ('tag', 'author', 'series', 'publisher', 'lang', 'year', 'format', 'rating', 'status')
+
+
+def _facet_int_list(key):
+    values = []
+    for value in request.args.getlist(key):
+        try:
+            values.append(int(value))
+        except (TypeError, ValueError):
+            continue
+    return values
+
+
+def _facet_str_list(key):
+    return [value for value in request.args.getlist(key) if value]
+
+
+def _facet_base_url():
+    view_args = dict(request.view_args or {})
+    view_args.pop('page', None)
+    return url_for(request.endpoint, **view_args)
+
+
+def _facet_url(key, value):
+    args = request.args.to_dict(flat=False)
+    args.pop('page', None)
+    selected = list(args.get(key, []))
+    if value in selected:
+        selected.remove(value)
+    else:
+        selected.append(value)
+    if selected:
+        args[key] = selected
+    else:
+        args.pop(key, None)
+    query = urlencode([(k, v) for k, values in args.items() for v in values])
+    base = _facet_base_url()
+    return base + ('?' + query if query else '')
+
+
+def _clear_facets_url():
+    args = request.args.to_dict(flat=False)
+    args.pop('page', None)
+    for key in FACET_KEYS:
+        args.pop(key, None)
+    query = urlencode([(k, v) for k, values in args.items() for v in values])
+    base = _facet_base_url()
+    return base + ('?' + query if query else '')
+
+
+def apply_facet_request():
+    """Translate the facet query parameters into a SQLAlchemy filter."""
+    filters = []
+    tag_ids = _facet_int_list('tag')
+    if tag_ids:
+        filters.append(db.Books.tags.any(db.Tags.id.in_(tag_ids)))
+    author_ids = _facet_int_list('author')
+    if author_ids:
+        filters.append(db.Books.authors.any(db.Authors.id.in_(author_ids)))
+    series_ids = _facet_int_list('series')
+    if series_ids:
+        filters.append(db.Books.series.any(db.Series.id.in_(series_ids)))
+    publisher_ids = _facet_int_list('publisher')
+    if publisher_ids:
+        filters.append(db.Books.publishers.any(db.Publishers.id.in_(publisher_ids)))
+    languages = _facet_str_list('lang')
+    if languages:
+        filters.append(db.Books.languages.any(db.Languages.lang_code.in_(languages)))
+    formats = [value.upper() for value in _facet_str_list('format')]
+    if formats:
+        filters.append(db.Books.data.any(db.Data.format.in_(formats)))
+    years = [str(value) for value in _facet_int_list('year')]
+    if years:
+        filters.append(func.strftime('%Y', db.Books.pubdate).in_(years))
+    ratings = _facet_int_list('rating')
+    if ratings:
+        filters.append(db.Books.ratings.any(db.Ratings.rating.in_(ratings)))
+    statuses = _facet_int_list('status')
+    if statuses and not current_user.is_anonymous and not config.config_read_column:
+        book_ids = [row.book_id for row in ub.session.query(ub.ReadBook.book_id)
+                    .filter(ub.ReadBook.user_id == int(current_user.id),
+                            ub.ReadBook.read_status.in_(statuses)).all()]
+        filters.append(db.Books.id.in_(book_ids) if book_ids else false())
+    g.facet_filter = and_(*filters) if filters else None
+
+
+def _resolve_facet_label(key, value):
+    try:
+        if key == 'tag':
+            row = calibre_db.session.query(db.Tags.name).filter(db.Tags.id == int(value)).first()
+        elif key == 'author':
+            row = calibre_db.session.query(db.Authors.name).filter(db.Authors.id == int(value)).first()
+        elif key == 'series':
+            row = calibre_db.session.query(db.Series.name).filter(db.Series.id == int(value)).first()
+        elif key == 'publisher':
+            row = calibre_db.session.query(db.Publishers.name).filter(db.Publishers.id == int(value)).first()
+        elif key == 'rating':
+            row = ('{0:g} / 5'.format(int(value) / 2),)
+        elif key == 'status':
+            labels = {0: _('Unread'), 1: _('Read'), 2: _('In progress')}
+            row = (labels.get(int(value), value),)
+        else:
+            row = (value,)
+    except (TypeError, ValueError, AttributeError):
+        row = (value,)
+    return row[0] if row else value
+
+
+def build_facet_view(raw_groups):
+    groups = []
+    for group in raw_groups:
+        selected = request.args.getlist(group['key'])
+        values = []
+        for value, label, count in group['values']:
+            is_active = str(value) in selected
+            values.append({
+                'value': value,
+                'label': label,
+                'count': count,
+                'active': is_active,
+                'url': _facet_url(group['key'], str(value))
+            })
+        if values:
+            groups.append({'key': group['key'], 'label': group['label'], 'values': values})
+
+    active = []
+    for key in FACET_KEYS:
+        for value in request.args.getlist(key):
+            active.append({
+                'key': key,
+                'label': _resolve_facet_label(key, value),
+                'url': _facet_url(key, value)
+            })
+    return {'groups': groups, 'active': active, 'clear_url': _clear_facets_url()}
+
+
+@web.app_context_processor
+def inject_facets():
+    if not getattr(g, 'show_facets', False):
+        return {}
+    cached = getattr(g, 'facet_view', None)
+    if cached is not None:
+        return {'facets': cached}
+    try:
+        cached = build_facet_view(calibre_db.get_facets())
+        g.facet_view = cached
+        return {'facets': cached}
+    except Exception as ex:  # pragma: no cover - facets must never break a page
+        log.error_or_exception(ex)
+        return {}
+
+
+def get_continue_reading(limit=6):
+    if current_user.is_anonymous or config.config_read_column:
+        return []
+    try:
+        rows = (ub.session.query(ub.ReadBook.book_id)
+                .filter(ub.ReadBook.user_id == int(current_user.id),
+                        ub.ReadBook.read_status == ub.ReadBook.STATUS_IN_PROGRESS)
+                .order_by(ub.ReadBook.last_modified.desc())
+                .limit(limit).all())
+    except Exception as ex:  # pragma: no cover - optional homepage section
+        log.error_or_exception(ex)
+        return []
+    book_ids = [row.book_id for row in rows]
+    if not book_ids:
+        return []
+    books = (calibre_db.generate_linked_query(config.config_read_column, db.Books)
+             .filter(db.Books.id.in_(book_ids))
+             .filter(calibre_db.common_filters()).all())
+    books_by_id = {entry.Books.id: entry for entry in books}
+    return [books_by_id[book_id] for book_id in book_ids if book_id in books_by_id]
+
+
+def get_recent_books(limit=6):
+    try:
+        return (calibre_db.generate_linked_query(config.config_read_column, db.Books)
+                .filter(calibre_db.common_filters())
+                .order_by(db.Books.timestamp.desc())
+                .limit(limit).all())
+    except Exception as ex:  # pragma: no cover - optional homepage section
+        log.error_or_exception(ex)
+        return []
+
+
 def render_books_list(data, sort_param, book_id, page):
+    apply_facet_request()
+    # Facets are only rendered by index.html; author.html has its own layout.
+    g.show_facets = (data or 'newest') not in ('discover', 'hot', 'search', 'advsearch', 'author')
     order = get_sort_function(sort_param, data)
     if data == "rated":
         return render_rated_books(page, book_id, order=order)
@@ -419,7 +614,14 @@ def render_books_list(data, sort_param, book_id, page):
                                                                 db.books_series_link,
                                                                 db.Books.id == db.books_series_link.c.book,
                                                                 db.Series)
+        is_home = website == "newest" and page == 1
+        continue_reading = get_continue_reading() if is_home else []
+        # Skip the extra query when the user is already filtering or sorting the
+        # main grid, the section would not match the visible selection.
+        recent_books = get_recent_books() if is_home and getattr(g, 'facet_filter', None) is None else []
         return render_title_template('index.html', random=random, entries=entries, pagination=pagination,
+                                     continue_reading=continue_reading,
+                                     recent_books=recent_books,
                                      title=_("Books"), page=website, order=order[1])
 
 
@@ -459,13 +661,7 @@ def render_hot_books(page, order):
             # if not (order[0][0].compare(func.count(ub.Downloads.book_id).desc()) or
             #        order[0][0].compare(func.count(ub.Downloads.book_id).asc())):
             order = [func.count(ub.Downloads.book_id).desc()], 'hotdesc'
-        if current_user.show_detail_random():
-            random_query = calibre_db.generate_linked_query(config.config_read_column, db.Books)
-            random = (random_query.filter(calibre_db.common_filters())
-                     .order_by(func.random())
-                     .limit(config.config_random_books).all())
-        else:
-            random = false()
+        random = false()
 
         off = int(int(config.config_books_per_page) * (page - 1))
         all_books = ub.session.query(ub.Downloads, func.count(ub.Downloads.book_id)) \
@@ -1633,7 +1829,10 @@ def show_book(book_id):
         read_book = entries[1]
         archived_book = entries[2]
         entry = entries[0]
-        entry.read_status = read_book == ub.ReadBook.STATUS_FINISHED
+        if config.config_read_column:
+            entry.read_status = ub.ReadBook.STATUS_FINISHED if read_book else ub.ReadBook.STATUS_UNREAD
+        else:
+            entry.read_status = int(read_book) if read_book is not None else ub.ReadBook.STATUS_UNREAD
         entry.is_archived = archived_book
         for lang_index in range(0, len(entry.languages)):
             entry.languages[lang_index].language_name = isoLanguages.get_language_name(get_locale(), entry.languages[
@@ -1661,12 +1860,22 @@ def show_book(book_id):
             if media_format.format.lower() in constants.EXTENSIONS_AUDIO:
                 entry.audio_entries.append(media_format.format.lower())
 
+        related_books = []
+        if entry.authors:
+            related_books = (calibre_db.generate_linked_query(config.config_read_column, db.Books)
+                             .filter(calibre_db.common_filters())
+                             .filter(db.Books.authors.any(db.Authors.id == entry.authors[0].id))
+                             .filter(db.Books.id != entry.id)
+                             .order_by(db.Books.timestamp.desc())
+                             .limit(6).all())
+
         return render_title_template('detail.html',
                                      entry=entry,
                                      cc=cc,
                                      is_xhr=request.headers.get('X-Requested-With') == 'XMLHttpRequest',
                                      title=entry.title,
                                      books_shelfs=book_in_shelves,
+                                     related_books=related_books,
                                      page="book")
     else:
         log.debug("Selected book is unavailable. File does not exist or is not accessible")

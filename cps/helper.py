@@ -318,8 +318,13 @@ def edit_book_read_status(book_id, read_status=None):
                 book.read_status = ub.ReadBook.STATUS_UNREAD
             else:
                 book.read_status = ub.ReadBook.STATUS_FINISHED
+        elif isinstance(read_status, bool):
+            book.read_status = ub.ReadBook.STATUS_FINISHED if read_status else ub.ReadBook.STATUS_UNREAD
         else:
-            book.read_status = ub.ReadBook.STATUS_FINISHED if read_status == True else ub.ReadBook.STATUS_UNREAD
+            book.read_status = int(read_status) if int(read_status) in (
+                ub.ReadBook.STATUS_UNREAD,
+                ub.ReadBook.STATUS_FINISHED,
+                ub.ReadBook.STATUS_IN_PROGRESS) else ub.ReadBook.STATUS_UNREAD
         if not book.kobo_reading_state:
             kobo_reading_state = ub.KoboReadingState(user_id=current_user.id, book_id=book_id)
             kobo_reading_state.current_bookmark = ub.KoboBookmark()
@@ -335,12 +340,18 @@ def edit_book_read_status(book_id, read_status=None):
             if len(book_read_status):
                 if read_status is None:
                     book_read_status[0].value = not book_read_status[0].value
+                elif isinstance(read_status, bool):
+                    book_read_status[0].value = read_status
                 else:
-                    book_read_status[0].value = read_status is True
+                    book_read_status[0].value = int(read_status) != ub.ReadBook.STATUS_UNREAD
                 calibre_db.session.commit()
             else:
                 cc_class = db.cc_classes[config.config_read_column]
-                new_cc = cc_class(value=read_status or 1, book=book_id)
+                if read_status is None or isinstance(read_status, bool):
+                    value = True if read_status is None else read_status
+                else:
+                    value = int(read_status) == ub.ReadBook.STATUS_FINISHED
+                new_cc = cc_class(value=value, book=book_id)
                 calibre_db.session.add(new_cc)
                 calibre_db.session.commit()
         except (KeyError, AttributeError, IndexError):

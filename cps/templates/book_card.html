@@ -1,0 +1,92 @@
+{% import 'image.html' as image %}
+
+{# Shared book card. Accepts either a query row (Books, is_archived, read_status)
+   or a plain Books instance, so it can be reused on every list page. #}
+{% macro book_card(entry, page=None, simple=False) -%}
+  {% set book = entry.Books if entry.Books is defined else entry %}
+  {% set read_state = entry[2] if entry[2] is defined else none %}
+  {% set is_finished = read_state is sameas true or read_state == 1 %}
+  {% set is_in_progress = read_state == 2 %}
+  <div class="col-sm-3 col-lg-2 col-xs-6 book session">
+    <div class="cover">
+      <a href="{{ url_for('web.show_book', book_id=book.id) }}"
+         {% if not simple %}data-toggle="modal" data-target="#bookDetailsModal" data-remote="false"{% endif %}>
+        <span class="img" title="{{ book.title }}">
+          {{ image.book_cover(book) }}
+          {% if is_finished %}
+            <span class="badge read glyphicon glyphicon-ok" title="{{ _('Read') }}">
+              <span class="sr-only">{{ _('Read') }}</span>
+            </span>
+          {% elif is_in_progress %}
+            <span class="badge in-progress glyphicon glyphicon-time" title="{{ _('In progress') }}">
+              <span class="sr-only">{{ _('In progress') }}</span>
+            </span>
+          {% endif %}
+        </span>
+      </a>
+      <div class="quick-actions">
+        <a href="{{ url_for('web.show_book', book_id=book.id) }}"
+           title="{{ _('Book details') }}" aria-label="{{ _('Book details') }}">
+          <span class="glyphicon glyphicon-info-sign" aria-hidden="true"></span>
+        </a>
+      </div>
+    </div>
+    <div class="meta">
+      <a href="{{ url_for('web.show_book', book_id=book.id) }}"
+         {% if not simple %}data-toggle="modal" data-target="#bookDetailsModal" data-remote="false"{% endif %}>
+        <p title="{{ book.title }}" class="title">{{ book.title|shortentitle }}</p>
+      </a>
+      <p class="author">
+        {% for author in book.authors %}
+          {% if loop.index > g.config_authors_max and g.config_authors_max != 0 %}
+            {% if not loop.first %}
+              <span class="author-hidden-divider">&amp;</span>
+            {% endif %}
+            <a class="author-name author-hidden"
+               href="{{ url_for('web.books_list', data='author', book_id=author.id, sort_param='stored') }}">{{ author.name.replace('|', ',')|shortentitle(30) }}</a>
+            {% if loop.last %}
+              <a href="#" class="author-expand" data-authors-max="{{ g.config_authors_max }}"
+                 data-collapse-caption="({{ _('reduce') }})">(...)</a>
+            {% endif %}
+          {% else %}
+            {% if not loop.first %}<span>&amp;</span>{% endif %}
+            <a class="author-name"
+               href="{{ url_for('web.books_list', data='author', book_id=author.id, sort_param='stored') }}">{{ author.name.replace('|', ',')|shortentitle(30) }}</a>
+          {% endif %}
+        {% endfor %}
+        {% if book.data|music %}
+          <span class="glyphicon glyphicon-music" aria-label="{{ _('Audiobook') }}"></span>
+        {% endif %}
+      </p>
+      {% if book.series.__len__() > 0 %}
+        <p class="series">
+          {% if page != "series" %}
+            <a href="{{ url_for('web.books_list', data='series', sort_param='stored', book_id=book.series[0].id) }}">{{ book.series[0].name }}</a>
+          {% else %}
+            <span>{{ book.series[0].name }}</span>
+          {% endif %}
+          ({{ book.series_index|formatfloat(2) }})
+        </p>
+      {% endif %}
+      {% if book.tags.__len__() > 0 %}
+        <p class="book-tags">
+          {% for tag in book.tags[:3] %}
+            <a class="book-tag" href="{{ url_for('web.books_list', data='category', sort_param='stored', book_id=tag.id) }}">{{ tag.name|shortentitle(20) }}</a>
+          {% endfor %}
+        </p>
+      {% endif %}
+      {% if book.ratings.__len__() > 0 %}
+        <div class="rating">
+          {% for number in range((book.ratings[0].rating / 2)|int(2)) %}
+            <span class="glyphicon glyphicon-star good"></span>
+            {% if loop.last and loop.index < 5 %}
+              {% for numer in range(5 - loop.index) %}
+                <span class="glyphicon glyphicon-star-empty"></span>
+              {% endfor %}
+            {% endif %}
+          {% endfor %}
+        </div>
+      {% endif %}
+    </div>
+  </div>
+{%- endmacro %}

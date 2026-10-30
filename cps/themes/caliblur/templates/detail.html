@@ -1,3 +1,4 @@
+{% from 'book_card.html' import book_card with context %}
 {% extends is_xhr|yesno("fragment.html", theme("layout.html")) %}
 {% block header %}
     <meta property="og:type" content="book" />
@@ -69,18 +70,19 @@
                                 <div id="shelf-action-errors" class="pull-left" role="alert"></div>
                             </div>
                         {% endif %}
-                        <div class="btn-group" role="group" aria-label="Read status">
-                            <form id="have_read_form" action="{{ url_for('web.toggle_read', book_id=entry.id) }}"
-                                  method="POST">
+                        <div class="btn-group read-status-form" role="group" aria-label="{{ _('Reading status') }}">
+                            <form id="read_status_form" class="read-status-form"
+                                  action="{{ url_for('web.toggle_read', book_id=entry.id) }}" method="POST">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                <label class="block-label">
-                                    <input id="have_read_cb" class="readunread-btn-tooltip" type="checkbox"
-                                           data-toggle="tooltip" data-placement="bottom" data-viewport=".btn-toolbar"
-                                           title="{% if entry.read_status %}{{ _('Mark As Unread') }}{% else %}{{ _('Mark As Read') }}{% endif %}"
-                                           {% if entry.read_status %}checked{% endif %}>
-                                    <label class="block-label readLbl" for="have_read_cb"></label>
-                                    <span data-toggle="tooltip" title="{{_('Mark Book as Read or Unread')}}">{{ _('Read') }}</span>
-                                </label>
+                                <input type="hidden" name="next" value="{{ request.path }}">
+                                <span class="btn-group" role="group">
+                                    <button type="submit" name="status" value="0"
+                                            class="btn btn-sm btn-default{% if entry.read_status == 0 %} active{% endif %}">{{ _('Unread') }}</button>
+                                    <button type="submit" name="status" value="2"
+                                            class="btn btn-sm btn-default{% if entry.read_status == 2 %} active{% endif %}">{{ _('In progress') }}</button>
+                                    <button type="submit" name="status" value="1"
+                                            class="btn btn-sm btn-default{% if entry.read_status == 1 %} active{% endif %}">{{ _('Read') }}</button>
+                                </span>
                             </form>
                         </div>
                     {% endif %}
@@ -335,6 +337,17 @@
                 <div class="comments">
                     <h3 id="decription">{{ _('Description:') }}</h3>
                     {{ entry.comments[0].text|clean_string|safe }}
+                </div>
+            {% endif %}
+
+            {% if related_books %}
+                <div class="related-books">
+                    <h3>{{ _('More by this author') }}</h3>
+                    <div class="row display-flex">
+                        {% for related in related_books %}
+                            {{ book_card(related, 'author', True) }}
+                        {% endfor %}
+                    </div>
                 </div>
             {% endif %}
 

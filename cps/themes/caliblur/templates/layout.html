@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 {% from theme('modal_dialogs.html') import restrict_modal, delete_book, filechooser_modal, delete_confirm_modal, change_confirm_modal %}
+{% from 'pagination.html' import render_pagination %}
 {% import 'image.html' as image %}
 <html lang="{{ current_user.locale }}">
   <head>
@@ -20,6 +21,7 @@
     <link href="{{ url_for('static', filename='css/upload.css') }}" rel="stylesheet" media="screen">
     <link href="{{ url_for('static', filename='css/caliBlur.css') }}" rel="stylesheet" media="screen">
     <link href="{{ url_for('static', filename='css/caliBlur_override.css') }}" rel="stylesheet" media="screen">
+    <link href="{{ url_for('static', filename='css/tokens.css') }}" rel="stylesheet" media="screen">
   </head>
   <body class="{{ page }} {{ bodyClass }} blur{% if page == 'stat' %} stats{% endif %}{% if page in ['config', 'uiconfig', 'newuser', 'edituser', 'mailset', 'usertable', 'dbconfig'] %} admin{% endif %}{% if page == 'advsearch' %} advanced_search{% endif %}" data-readmore-more="{{_('Read more')}}" data-readmore-less="{{_('Read less')}}">
     <!-- Static navbar -->
@@ -100,22 +102,22 @@
     {% for message in get_flashed_messages(with_categories=True) %}
       {%if message[0] == "error" %}
       <div class="row-fluid text-center" >
-        <div id="flash_danger" class="alert alert-danger">{{ message[1] }}</div>
+        <div id="flash_danger" class="alert alert-danger" role="alert">{{ message[1] }}</div>
       </div>
       {%endif%}
       {%if message[0] == "info" %}
       <div class="row-fluid text-center">
-        <div id="flash_info" class="alert alert-info">{{ message[1] }}</div>
+        <div id="flash_info" class="alert alert-info" role="alert">{{ message[1] }}</div>
       </div>
       {%endif%}
       {%if message[0] == "warning" %}
       <div class="row-fluid text-center">
-        <div id="flash_warning" class="alert alert-warning">{{ message[1] }}</div>
+        <div id="flash_warning" class="alert alert-warning" role="alert">{{ message[1] }}</div>
       </div>
       {%endif%}
       {%if message[0] == "success" %}
       <div class="row-fluid text-center">
-        <div id="flash_success" class="alert alert-success">{{ message[1] }}</div>
+        <div id="flash_success" class="alert alert-success" role="alert">{{ message[1] }}</div>
       </div>
       {%endif%}
     {% endfor %}
@@ -130,17 +132,27 @@
         <div class="col-sm-2">
           <nav class="navigation">
             <ul class="list-unstyled" id="scnd-nav" intent in-standard-append="nav.navigation" in-tablet-after="#main-nav" in-tablet-class="nav navbar-nav" in-mobile-after="#main-nav" in-mobile-class="nav navbar-nav">
-              <li class="nav-head hidden-xs">{{_('Browse')}}</li>
               <li><a href="{{url_for('search.advanced_search')}}" id="advanced_search"><span class="glyphicon glyphicon-search"></span><span class="hidden-sm"> {{_('Advanced Search')}}</span></a></li>
-              {% for element in sidebar %}
-                {% if current_user.check_visibility(element['visibility']) and element['public'] %}
-                    <li id="nav_{{element['id']}}" {% if page == element['page'] %}class="active"{% endif %}><a href="{% if element['no_param'] %}{{url_for(element['link'], data=element['page'])}}{%else%}{{url_for(element['link'], data=element['page'], sort_param='stored')}}{% endif %}"><span class="glyphicon {{element['glyph']}}"></span> <span class="nav-text">{{_(element['text'])|trim}}</span></a></li>
-                {% endif %}
-              {% endfor %}
+              {% if sidebar_groups %}
+                {% for group in sidebar_groups %}
+                  <li class="nav-head hidden-xs">{{ group.text }}</li>
+                  {% for element in group['items'] %}
+                    {% if current_user.check_visibility(element['visibility']) and element['public'] %}
+                      <li id="nav_{{element['id']}}" {% if page == element['page'] %}class="active"{% endif %}><a href="{% if element['no_param'] %}{{url_for(element['link'], data=element['page'])}}{%else%}{{url_for(element['link'], data=element['page'], sort_param='stored')}}{% endif %}"><span class="glyphicon {{element['glyph']}}"></span> <span class="nav-text">{{_(element['text'])|trim}}</span></a></li>
+                    {% endif %}
+                  {% endfor %}
+                {% endfor %}
+              {% else %}
+                {% for element in sidebar %}
+                  {% if current_user.check_visibility(element['visibility']) and element['public'] %}
+                      <li id="nav_{{element['id']}}" {% if page == element['page'] %}class="active"{% endif %}><a href="{% if element['no_param'] %}{{url_for(element['link'], data=element['page'])}}{%else%}{{url_for(element['link'], data=element['page'], sort_param='stored')}}{% endif %}"><span class="glyphicon {{element['glyph']}}"></span> <span class="nav-text">{{_(element['text'])|trim}}</span></a></li>
+                  {% endif %}
+                {% endfor %}
+              {% endif %}
               {% if current_user.is_authenticated or g.allow_anonymous %}
                 <li class="nav-head hidden-xs public-shelves">{{_('Shelves')}}</li>
                 {% for shelf in g.shelves_access %}
-                  <li><a href="{{url_for('shelf.show_shelf', shelf_id=shelf.id)}}"><span class="glyphicon glyphicon-list shelf"></span> {{shelf.name|shortentitle(40)}}{% if shelf.is_public == 1 %} {{_('(Public)')}}{% endif %} <span class="badge badge-sm">{{shelf.books.all()|length}}</span></a></li>
+                  <li><a href="{{url_for('shelf.show_shelf', shelf_id=shelf.id)}}"><span class="glyphicon glyphicon-list shelf"></span> {{shelf.name|shortentitle(40)}}{% if shelf.is_public == 1 %} {{_('(Public)')}}{% endif %} <span class="badge badge-sm">{{shelf.books.count()}}</span></a></li>
                 {% endfor %}
               {% if not current_user.is_anonymous %}
                 <li id="nav_createshelf" class="create-shelf"><a href="{{url_for('shelf.create_shelf')}}">{{_('Create a Shelf')}}</a></li>
@@ -153,27 +165,7 @@
         {% endif %}
         <div class="col-sm-10">
           {% block body %}{% endblock %}
-          {% if pagination and (pagination.has_next or pagination.has_prev) %}
-            <div class="pagination">
-              {% if pagination.has_prev %}
-              <li class="page-item page-previous"><a class="page-link" aria-label="next page" href="{{ (pagination.page - 1)|url_for_other_page }}">&laquo; {{_('Previous')}}</a></li>
-              {% endif %}
-            {% for page in pagination.iter_pages() %}
-              {% if page %}
-                {% if page != pagination.page %}
-                  <li class="page-item"><a class="page-link" aria-label="to page {{ page }}" href="{{ (page)|url_for_other_page }}">{{ page }}</a></li>
-                {% else %}
-                  <li class="page-item active"><a class="page-link" aria-label="to page {{ page }}" href="{{ (page)|url_for_other_page }}">{{ page }}</a></li>
-                {% endif %}
-              {% else %}
-                <li class="page-item page-last-separator disabled"><a class="page-link" aria-label="">…</a></li>
-              {% endif %}
-            {% endfor %}
-            {% if pagination.has_next %}
-              <li class="page-item page-next"><a class="page-link next" aria-label="next page" href="{{ (pagination.page + 1)|url_for_other_page }}">{{_('Next')}} &raquo;</a></li>
-            {% endif %}
-            </div>
-          {% endif %}
+          {{ render_pagination(pagination) }}
       </div>
     </div>
   </div>
@@ -203,6 +195,7 @@
     <script src="{{ url_for('static', filename='js/libs/jquery.form.min.js') }}"></script>
     <script src="{{ url_for('static', filename='js/uploadprogress.js') }}"> </script>
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/facets.js') }}"></script>
     <script src="{{ url_for('static', filename='js/libs/jquery.visible.min.js') }}"></script>
     <script src="{{ url_for('static', filename='js/libs/compromise.min.js') }}"></script>
     <script src="{{ url_for('static', filename='js/libs/readmore.min.js') }}"></script>

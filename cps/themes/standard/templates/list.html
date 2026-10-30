@@ -2,24 +2,24 @@
 {% block body %}
 <h1 class="{{page}}">{{_(title)}}</h1>
 
-    <div class="filterheader hidden-xs">
+    <div class="filterheader">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       {% if entries.__len__() and data == 'author' %}
-        <div id="sort_name" class="btn btn-primary"><b>B,A <-> A B</b></div>
+        <button type="button" id="sort_name" class="btn btn-primary" aria-label="{{ _('Toggle author name order') }}"><b>B,A <-> A B</b></button>
       {% endif %}
-      <div id="asc" data-order="{{ order }}" data-id="{{ data }}" class="btn btn-primary {% if order == 1 %} active{% endif%}"><span class="glyphicon glyphicon-sort-by-alphabet"></span></div>
-      <div id="desc" data-id="{{ data }}" class="btn btn-primary{% if order == 0 %} active{% endif%}"><span class="glyphicon glyphicon-sort-by-alphabet-alt"></span></div>
+      <button type="button" id="asc" data-order="{{ order }}" data-id="{{ data }}" class="btn btn-primary {% if order == 1 %} active{% endif%}" aria-label="{{ _('Sort ascending') }}"><span class="glyphicon glyphicon-sort-by-alphabet" aria-hidden="true"></span></button>
+      <button type="button" id="desc" data-id="{{ data }}" class="btn btn-primary{% if order == 0 %} active{% endif%}" aria-label="{{ _('Sort descending') }}"><span class="glyphicon glyphicon-sort-by-alphabet-alt" aria-hidden="true"></span></button>
       {% if charlist|length %}
-      <div id="all" class="active btn btn-primary {% if charlist|length > 9 %}hidden-sm{% endif %}">{{_('All')}}</div>
+      <button type="button" id="all" class="active btn btn-primary {% if charlist|length > 9 %}hidden-sm{% endif %}">{{_('All')}}</button>
       {% endif %}
-      <div class="btn-group character {% if charlist|length > 9 %}hidden-sm{% endif %}" role="group">
+      <div class="btn-group character {% if charlist|length > 9 %}hidden-sm{% endif %}" role="group" aria-label="{{ _('Filter by first letter') }}">
         {% for char in charlist%}
-        <div class="btn btn-primary char">{{char[0]}}</div>
+        <button type="button" class="btn btn-primary char">{{char[0]}}</button>
         {% endfor %}
       </div>
 
       {% if data == "series" %}
-      <button class="update-view btn btn-primary" data-target="series_view" id="grid-button" data-view="grid">{{_('Grid')}}</button>
+      <button type="button" class="update-view btn btn-primary" data-target="series_view" id="grid-button" data-view="grid">{{_('Grid')}}</button>
       {% endif %}
     </div>
   <div class="container1">
