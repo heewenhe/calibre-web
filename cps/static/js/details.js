@@ -48,40 +48,6 @@ $(".sendbtn-form").click(function() {
 });
 
 $(function() {
-    $("#have_read_form").ajaxForm();
-});
-
-$("#have_read_cb").on("change", function() {
-    $.ajax({
-        url: this.closest("form").action,
-        method:"post",
-        data: $(this).closest("form").serialize(),
-        error: function(response) {
-            var data = [{type:"danger", message:response.responseText}]
-            // $("#flash_success").parent().remove();
-            $("#flash_danger").remove();
-            $(".row-fluid.text-center").remove();
-            if (!jQuery.isEmptyObject(data)) {
-                $("#have_read_cb").prop("checked", !$("#have_read_cb").prop("checked"));
-                if($("#bookDetailsModal").is(":visible")) {
-                    data.forEach(function (item) {
-                        $(".modal-header").after('<div id="flash_' + item.type +
-                            '" class="text-center alert alert-' + item.type + '">' + item.message + '</div>');
-                    });
-                } else
-                {
-                    data.forEach(function (item) {
-                        $(".navbar").after('<div class="row-fluid text-center" >' +
-                            '<div id="flash_' + item.type + '" class="alert alert-' + item.type + '">' + item.message + '</div>' +
-                            '</div>');
-                    });
-                }
-            }
-        }
-    });
-});
-
-$(function() {
     $("#archived_form").ajaxForm();
 });
 

@@ -155,7 +155,7 @@
           <p>
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <label class="block-label">
-              <input id="have_read_cb" type="checkbox" {% if entry.read_status %}checked{% endif %} disabled>
+              <input id="have_read_cb" type="checkbox" aria-label="{{ _('Read') }}" {% if entry.read_status == 1 %}checked{% endif %} disabled>
               <span>{{_('Read')}}</span>
             </label>
           </p>
@@ -163,7 +163,7 @@
           <p>
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <label class="block-label">
-                <input id="archived_cb" type="checkbox" {% if entry.is_archived %}checked{% endif %} disabled>
+                <input id="archived_cb" type="checkbox" aria-label="{{ _('Archived') }}" {% if entry.is_archived %}checked{% endif %} disabled>
                 <span>{{_('Archived')}}</span>
               </label>
           </p>

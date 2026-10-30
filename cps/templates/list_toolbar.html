@@ -1,0 +1,33 @@
+{% macro sort_toolbar(page, order, book_id=None, extra_class='') -%}
+  {% set bid = book_id if book_id is defined and book_id not in (none, '') else 1 %}
+  {% if page == 'hot' %}
+    {% set options = [('hotdesc', _('Most downloaded')), ('hotasc', _('Least downloaded'))] %}
+  {% else %}
+    {% set options = [
+      ('new', _('Newest first')),
+      ('old', _('Oldest first')),
+      ('abc', _('Title A-Z')),
+      ('zyx', _('Title Z-A')),
+      ('authaz', _('Author A-Z')),
+      ('authza', _('Author Z-A')),
+      ('pubnew', _('Published, newest first')),
+      ('pubold', _('Published, oldest first'))
+    ] %}
+    {% if page == 'series' %}
+      {% set options = options + [
+        ('seriesasc', _('Series index ascending')),
+        ('seriesdesc', _('Series index descending'))
+      ] %}
+    {% endif %}
+  {% endif %}
+  <div class="list-toolbar {{ extra_class }}">
+    <label class="sr-only" for="sort_select">{{ _('Sort by') }}</label>
+    <select id="sort_select" class="form-control input-sm"
+            onchange="if (this.value) { window.location.href = this.value; }">
+      {% for value, label in options %}
+        <option value="{{ url_for('web.books_list', data=page, sort_param=value, book_id=bid) }}"
+                {% if order == value %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+{%- endmacro %}

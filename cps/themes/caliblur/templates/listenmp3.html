@@ -155,7 +155,7 @@
           <p>
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <label class="block-label">
-              <input id="have_read_cb" class="readunread-btn-tooltip" type="checkbox" {% if entry.read_status %}checked{% endif %} disabled data-toggle="tooltip" data-placement="bottom" data-viewport=".btn-toolbar" title="{% if entry.read_status %}{{_('Mark As Unread')}}{% else %}{{_('Mark As Read')}}{% endif %}">
+              <input id="have_read_cb" class="readunread-btn-tooltip" type="checkbox" aria-label="{{ _('Read') }}" {% if entry.read_status == 1 %}checked{% endif %} disabled data-toggle="tooltip" data-placement="bottom" data-viewport=".btn-toolbar" title="{{ _('Read') }}">
               <span>{{_('Read')}}</span>
             </label>
           </p>
@@ -163,7 +163,7 @@
           <p>
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <label class="block-label">
-                <input id="archived_cb" class="readunread-btn-tooltip" type="checkbox" {% if entry.is_archived %}checked{% endif %} disabled data-toggle="tooltip" data-placement="bottom" data-viewport=".btn-toolbar" title="{% if entry.is_archived %}{{_('Restore from archive')}}{% else %}{{_('Add to archive')}}{% endif %}">
+                <input id="archived_cb" class="readunread-btn-tooltip" type="checkbox" aria-label="{{ _('Archived') }}" {% if entry.is_archived %}checked{% endif %} disabled data-toggle="tooltip" data-placement="bottom" data-viewport=".btn-toolbar" title="{{ _('Archived') }}">
                 <span>{{_('Archived')}}</span>
               </label>
           </p>
